@@ -164,9 +164,9 @@
         sunLight.shadow.camera.far = 150;
         sunLight.shadow.mapSize.width = 8192;
         sunLight.shadow.mapSize.height = 8192;
-        sunLight.shadow.bias = -0.0005;
-        sunLight.shadow.normalBias = 0.01;
-        sunLight.shadow.radius = 1;
+        sunLight.shadow.bias = -0.0001; // Reduced bias for tighter contact shadows
+        sunLight.shadow.normalBias = 0.02; // Increased to prevent self-shadowing artifacts
+        sunLight.shadow.radius = 2; // Slightly softer shadows
 
         // Planet
         const planetRadius = 16;
