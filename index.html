@@ -32,6 +32,7 @@
         S - Move backward<br>
         A - Turn left<br>
         D - Turn right<br>
+        SPACE - Jump<br>
         <br>
         Walk around the planet!
     </div>
@@ -111,90 +112,109 @@
         document.body.appendChild(renderer.domElement);
 
         // Lighting
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.3); // Start dim for cave
+        const ambientLight = new THREE.AmbientLight(0x808080, 2.5); // Brighter ambient light to prevent overly dark shadows
         scene.add(ambientLight);
 
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        const sunLight = new THREE.DirectionalLight(0xffffff, 2.0); // Reduced intensity to balance with ambient
         sunLight.position.set(10, 10, 10);
         sunLight.castShadow = true;
         sunLight.shadow.camera.left = -20;
         sunLight.shadow.camera.right = 20;
         sunLight.shadow.camera.top = 20;
         sunLight.shadow.camera.bottom = -20;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 100;
+        sunLight.shadow.mapSize.width = 2048; // Good balance of quality and performance
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.bias = -0.001; // Stronger bias to ensure shadows appear
+        sunLight.shadow.normalBias = 0.02; // Moderate value to balance artifacts and visibility
         // Don't add to scene yet - will add to planet group later
 
-        // Planet - smooth sphere (doubled size) with dirt/ground appearance
-        const planetRadius = 16;
-        const planetGeometry = new THREE.SphereGeometry(planetRadius, 64, 64);
-        const planetMaterial = new THREE.MeshStandardMaterial({
-            color: 0x4a3020, // Brown dirt color
-            roughness: 0.95,
-            metalness: 0
-        });
-        const planet = new THREE.Mesh(planetGeometry, planetMaterial);
-        planet.castShadow = true;
-        planet.receiveShadow = true;
+        // Planet - Load Blender GLB model
+        const planetRadius = 16; // Keep for reference in other calculations
         
         // Create a group for planet, stars, and lighting so they rotate together
         const planetGroup = new THREE.Group();
-        planetGroup.add(planet);
         planetGroup.add(sunLight); // Add sun light to planet group
-        planetGroup.visible = false; // Hide planet during intro
         scene.add(planetGroup);
+
+        // Load the Blender world model
+        const planetLoader = new GLTFLoader();
+        planetLoader.load('world-only.glb', function(gltf) {
+            const planet = gltf.scene;
+            
+            // Enable shadows for all meshes
+            planet.traverse((child) => {
+                if (child.isMesh) {
+                    // Objects cast and receive shadows
+                    // Note: In Blender, name ground meshes with "ground_" prefix to disable their shadow casting
+                    const isGround = child.name.toLowerCase().includes('ground');
+                    child.castShadow = !isGround; // Ground doesn't cast shadows, prevents vertical lines
+                    child.receiveShadow = true;
+                    console.log(`Mesh: ${child.name}, castShadow: ${!isGround}, receiveShadow: true`);
+                }
+            });
+            
+            // Add the loaded model to the planet group
+            planetGroup.add(planet);
+            console.log('Blender world model loaded successfully');
+        }, undefined, function(error) {
+            console.error('Error loading world model:', error);
+        });
 
         // Character - animated placeholder (will be replaced with Blender model)
         const characterGroup = new THREE.Group();
 
-        // Body (torso)
-        const bodyGeometry = new THREE.CapsuleGeometry(0.25, 0.6, 8, 16);
+        // Body (torso) - scaled down to half size
+        const bodyGeometry = new THREE.CapsuleGeometry(0.05, 0.125, 8, 16);
         const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x3366ff });
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-        body.position.y = 0.3;
+        body.position.y = 0.0625;
         body.castShadow = true;
         characterGroup.add(body);
 
-        // Head
-        const headGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+        // Head - scaled down to half size
+        const headGeometry = new THREE.SphereGeometry(0.04, 16, 16);
         const headMaterial = new THREE.MeshStandardMaterial({ color: 0xffccaa });
         const head = new THREE.Mesh(headGeometry, headMaterial);
-        head.position.y = 0.8;
+        head.position.y = 0.165;
         head.castShadow = true;
         characterGroup.add(head);
 
-        // Face direction indicator (nose/cone)
-        const coneGeometry = new THREE.ConeGeometry(0.1, 0.2, 8);
+        // Face direction indicator (nose/cone) - scaled down to half size
+        const coneGeometry = new THREE.ConeGeometry(0.02, 0.04, 8);
         const coneMaterial = new THREE.MeshStandardMaterial({ color: 0xff8888 });
         const nose = new THREE.Mesh(coneGeometry, coneMaterial);
-        nose.position.set(0, 0.8, 0.15);
+        nose.position.set(0, 0.165, 0.03);
         nose.rotation.x = Math.PI / 2;
         nose.castShadow = true;
         characterGroup.add(nose);
 
-        // Left arm
-        const armGeometry = new THREE.CapsuleGeometry(0.08, 0.4, 6, 8);
+        // Left arm - scaled down to half size
+        const armGeometry = new THREE.CapsuleGeometry(0.015, 0.08, 6, 8);
         const armMaterial = new THREE.MeshStandardMaterial({ color: 0x3366ff });
         const leftArm = new THREE.Mesh(armGeometry, armMaterial);
-        leftArm.position.set(-0.3, 0.35, 0);
+        leftArm.position.set(-0.06, 0.07, 0);
         leftArm.castShadow = true;
         characterGroup.add(leftArm);
 
-        // Right arm
+        // Right arm - scaled down to half size
         const rightArm = new THREE.Mesh(armGeometry, armMaterial);
-        rightArm.position.set(0.3, 0.35, 0);
+        rightArm.position.set(0.06, 0.07, 0);
         rightArm.castShadow = true;
         characterGroup.add(rightArm);
 
-        // Left leg
-        const legGeometry = new THREE.CapsuleGeometry(0.1, 0.5, 6, 8);
+        // Left leg - scaled down to half size
+        const legGeometry = new THREE.CapsuleGeometry(0.02, 0.1, 6, 8);
         const legMaterial = new THREE.MeshStandardMaterial({ color: 0x2244aa });
         const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
-        leftLeg.position.set(-0.12, -0.25, 0);
+        leftLeg.position.set(-0.025, -0.05, 0);
         leftLeg.castShadow = true;
         characterGroup.add(leftLeg);
 
-        // Right leg
+        // Right leg - scaled down to half size
         const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
-        rightLeg.position.set(0.12, -0.25, 0);
+        rightLeg.position.set(0.025, -0.05, 0);
         rightLeg.castShadow = true;
         characterGroup.add(rightLeg);
 
@@ -216,9 +236,9 @@
             isWalking: false,
             walkCycle: 0,
             walkSpeed: 5.0, // Animation speed
-            headBobAmount: 0.05,
-            armSwingAmount: 0.4,
-            legSwingAmount: 0.3
+            headBobAmount: 0.01, // Half size for smaller character
+            armSwingAmount: 0.2, // Half size for smaller character
+            legSwingAmount: 0.15 // Half size for smaller character
         };
 
         // Helper function to replace placeholder with animated Blender character
@@ -272,71 +292,11 @@
             planetGroup.add(model);
         }
 
-        // Cave tunnel (will be replaced with Blender asset)
-        const caveGroup = new THREE.Group();
-        
-        // Create tunnel using cylinder
-        const tunnelGeometry = new THREE.CylinderGeometry(2, 2, 20, 8, 1, true);
-        const tunnelMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x2a2a2a,
-            side: THREE.BackSide,
-            roughness: 1
-        });
-        const tunnel = new THREE.Mesh(tunnelGeometry, tunnelMaterial);
-        tunnel.rotation.x = Math.PI / 2;
-        tunnel.position.z = 10;
-        caveGroup.add(tunnel);
-        
-        // Cave entrance/exit - bright opening
-        const exitLight = new THREE.PointLight(0xffffee, 2, 20);
-        exitLight.position.set(0, 0, 20);
-        caveGroup.add(exitLight);
-        
-        // Add some dim lights in tunnel
-        const tunnelLight1 = new THREE.PointLight(0xff8844, 0.3, 10);
-        tunnelLight1.position.set(0, 0, 5);
-        caveGroup.add(tunnelLight1);
 
-        scene.add(caveGroup);
-
-        // Helper function to replace placeholder cave with Blender model
-        // Usage example:
-        // loader.load('assets/models/cave.glb', (gltf) => {
-        //     replaceCaveWithModel(gltf.scene);
-        // });
-        function replaceCaveWithModel(model) {
-            // Remove placeholder cave elements
-            caveGroup.clear();
-
-            // Position and configure the model
-            model.position.set(0, 0, 0);
-            model.rotation.set(0, 0, 0);
-            model.traverse((child) => {
-                if (child.isMesh) {
-                    child.receiveShadow = true;
-                    // Make materials transparent-capable for fade-out
-                    if (child.material) {
-                        child.material.transparent = true;
-                    }
-                }
-            });
-
-            // Keep the lights for atmosphere
-            const exitLight = new THREE.PointLight(0xffffee, 2, 20);
-            exitLight.position.set(0, 0, 20);
-            caveGroup.add(exitLight);
-
-            const tunnelLight = new THREE.PointLight(0xff8844, 0.3, 10);
-            tunnelLight.position.set(0, 0, 5);
-            caveGroup.add(tunnelLight);
-
-            caveGroup.add(model);
-        }
-
-        // Position character on planet surface (starts in cave)
-        const characterHeight = 1.0; // Approximate height of character
-        const characterDistance = planetRadius + characterHeight;
-        characterGroup.position.set(0, 5, 0); // Start at low Y position (climbing up)
+        // Position character at spawn height (will fall with gravity)
+        const characterHeight = 0.2; // Approximate height of character (half size)
+        const spawnHeight = 10; // Spawn character high up, let gravity pull them down
+        characterGroup.position.set(0, spawnHeight, 0);
 
         // Stars background
         const starsGeometry = new THREE.BufferGeometry();
@@ -351,6 +311,61 @@
         starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
         const stars = new THREE.Points(starsGeometry, starsMaterial);
         planetGroup.add(stars); // Add stars to planet group so they rotate together
+
+        // Atmosphere - sky sphere that surrounds the planet
+        const atmosphereGeometry = new THREE.SphereGeometry(25, 32, 32); // Larger than planet
+        const atmosphereMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                sunDirection: { value: new THREE.Vector3(1, 1, 1).normalize() },
+                dayColor: { value: new THREE.Color(0x87CEEB) }, // Sky blue
+                nightColor: { value: new THREE.Color(0x000000) }, // Black/transparent
+                horizonColor: { value: new THREE.Color(0xFFB347) } // Orange horizon
+            },
+            vertexShader: `
+                varying vec3 vNormal;
+                varying vec3 vPosition;
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    vPosition = position;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 sunDirection;
+                uniform vec3 dayColor;
+                uniform vec3 nightColor;
+                uniform vec3 horizonColor;
+                varying vec3 vNormal;
+                varying vec3 vPosition;
+
+                void main() {
+                    // Calculate how much this point faces the sun
+                    vec3 normal = normalize(vPosition);
+                    float sunAlignment = dot(normal, sunDirection);
+
+                    // Smooth transition from day to night
+                    float dayStrength = smoothstep(-0.3, 0.3, sunAlignment);
+
+                    // Horizon glow effect
+                    float horizonGlow = 1.0 - abs(sunAlignment);
+                    horizonGlow = pow(horizonGlow, 3.0) * dayStrength;
+
+                    // Mix colors based on sun position
+                    vec3 skyColor = mix(nightColor, dayColor, dayStrength);
+                    skyColor = mix(skyColor, horizonColor, horizonGlow * 0.5);
+
+                    // Make night side more transparent to show stars
+                    float alpha = dayStrength * 0.9 + 0.1;
+
+                    gl_FragColor = vec4(skyColor, alpha);
+                }
+            `,
+            side: THREE.BackSide, // Render inside of sphere
+            transparent: true,
+            depthWrite: false
+        });
+        const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+        scene.add(atmosphere); // Add to scene, not planet group (doesn't rotate)
 
         // Sun - positioned where the directional light comes from
         // The sunLight is at (10, 10, 10), so position the sun there
@@ -484,55 +499,6 @@
 
         // Obstacles (will be replaced with Blender assets)
         const obstacles = [];
-        const numObstacles = 8;
-        const obstacleHeight = 2.0; // Height of obstacles
-        const obstacleRadius = 1.0; // Collision radius
-
-        for (let i = 0; i < numObstacles; i++) {
-            // Random position on sphere surface
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.random() * Math.PI;
-
-            const obstacleDistance = planetRadius + obstacleHeight / 2;
-            const x = obstacleDistance * Math.sin(phi) * Math.cos(theta);
-            const y = obstacleDistance * Math.cos(phi);
-            const z = obstacleDistance * Math.sin(phi) * Math.sin(theta);
-
-            const obstaclePosition = new THREE.Vector3(x, y, z);
-
-            // Create placeholder obstacle (rock/tree/etc)
-            const obstacleGeometry = new THREE.ConeGeometry(0.8, obstacleHeight, 6);
-            const obstacleMaterial = new THREE.MeshStandardMaterial({
-                color: Math.random() > 0.5 ? 0x8B4513 : 0x556B2F,
-                roughness: 0.9
-            });
-            const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
-            obstacle.position.copy(obstaclePosition);
-
-            // Point obstacle "up" from planet center (align with radial direction)
-            const upDirection = obstaclePosition.clone().normalize();
-            obstacle.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), upDirection);
-
-            obstacle.castShadow = true;
-            obstacle.receiveShadow = true;
-
-            planetGroup.add(obstacle);
-
-            // Calculate bounding box for accurate collision
-            obstacle.geometry.computeBoundingBox();
-            const boundingBox = obstacle.geometry.boundingBox;
-            const size = new THREE.Vector3();
-            boundingBox.getSize(size);
-
-            // Store obstacle data for collision detection
-            obstacles.push({
-                mesh: obstacle,
-                position: obstaclePosition.clone(),
-                radius: Math.max(size.x, size.z) / 2, // Horizontal radius
-                height: size.y, // Vertical height
-                boundingBox: boundingBox
-            });
-        }
 
         // Helper function to add obstacle from loaded model
         // Usage example:
@@ -575,7 +541,6 @@
 
         // Interactive Signs System
         const signs = [];
-        const numSigns = 3; // Create a few test signs
 
         // Helper function to create interactive sign with text box
         function createInteractiveSign(position, text) {
@@ -651,27 +616,6 @@
                 pulsePhase: Math.random() * Math.PI * 2, // Random starting phase for pulse
                 interactionRadius: 3.0 // Distance at which text appears
             });
-        }
-
-        // Create test signs at various positions
-        for (let i = 0; i < numSigns; i++) {
-            const theta = (i / numSigns) * Math.PI * 2;
-            const phi = Math.PI / 2 + (Math.random() - 0.5) * 0.5;
-
-            const signDistance = planetRadius + 0.01;
-            const x = signDistance * Math.sin(phi) * Math.cos(theta);
-            const y = signDistance * Math.cos(phi);
-            const z = signDistance * Math.sin(phi) * Math.sin(theta);
-
-            const signPosition = new THREE.Vector3(x, y, z);
-
-            const testTexts = [
-                "Welcome to the Planet! Press W/S to move forward/backward, A/D to turn.",
-                "This is an interactive sign. You can replace these with Blender models!",
-                "The text box follows you and appears when you're close enough."
-            ];
-
-            createInteractiveSign(signPosition, testTexts[i % testTexts.length]);
         }
 
         // Helper function to replace sign with Blender model
@@ -894,74 +838,71 @@
             );
         }
 
-        // Camera setup - locked third-person (adjusted for larger planet)
-        const cameraDistance = 8;
-        const cameraHeight = 4;
+        // Camera setup - locked third-person (much closer)
+        const cameraDistance = 1.2; // Closer to character
+        const cameraHeight = 0.6;
         const cameraAngle = Math.PI; // Camera behind character
 
-        // Intro climbing system
-        const climbingSystem = {
-            active: false,
-            climbSteps: 0,
-            maxClimbSteps: 8, // Number of W presses to climb out
-            isClimbing: false, // Currently playing climb animation
-            climbProgress: 0,
-            climbAnimDuration: 0.8, // Duration of each climb animation in seconds (slower for better feel)
-            startY: 5, // Starting Y position in cave (below surface)
-            peekOutStep: 4, // Step when head peeks out and camera starts transitioning
-            cameraTransitionStarted: false
-        };
-
-        // Set initial first-person camera position (in the cave, looking straight ahead/slightly up)
-        camera.position.set(0, 5.6, -10);
-        camera.lookAt(0, 5.8, -9);
+        // Set initial camera position
+        camera.position.set(0, spawnHeight + cameraHeight, -cameraDistance);
+        camera.lookAt(0, spawnHeight, 0);
 
         // Input handling
         const keys = {
             w: false,
             a: false,
             s: false,
-            d: false
+            d: false,
+            space: false
         };
 
-        let introActive = true;
-        let introFadeComplete = false;
+        // Physics/Gravity system
+        const physics = {
+            velocity: new THREE.Vector3(0, 0, 0),
+            gravity: 20.0, // Gravity strength (pulls toward planet center)
+            isGrounded: false,
+            jumpForce: 5.0,
+            characterRadius: 0.075 // Collision detection radius (half size)
+        };
 
-        // Handle Enter key to start intro, W to climb
+        // Raycaster for collision detection
+        const raycaster = new THREE.Raycaster();
+        const downVector = new THREE.Vector3(0, -1, 0);
+
+        let introActive = true;
+
+        // Handle Enter key to start game
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
 
-            // Start intro sequence on Enter
-            if (e.key === 'Enter' && introActive && !climbingSystem.active) {
-                climbingSystem.active = true;
+            // Start game on Enter
+            if (e.key === 'Enter' && introActive) {
+                introActive = false;
                 document.getElementById('intro-screen').classList.add('fade-out');
 
                 // Remove intro screen after fade
                 setTimeout(() => {
                     document.getElementById('intro-screen').style.display = 'none';
-                    introFadeComplete = true;
                 }, 1000);
                 return;
             }
 
-            // Climbing with W key (only during intro)
-            if (key === 'w' && climbingSystem.active && introFadeComplete && !climbingSystem.isClimbing) {
-                if (climbingSystem.climbSteps < climbingSystem.maxClimbSteps) {
-                    climbingSystem.isClimbing = true;
-                    climbingSystem.climbProgress = 0;
-                    climbingSystem.climbSteps++;
-                }
+            // Normal key handling for gameplay
+            if (key in keys && !introActive) {
+                keys[key] = true;
             }
 
-            // Normal key handling for gameplay
-            if (key in keys && !climbingSystem.active) {
-                keys[key] = true;
+            // Jump with spacebar
+            if (e.code === 'Space' && !introActive && physics.isGrounded) {
+                physics.velocity.y = physics.jumpForce;
+                physics.isGrounded = false;
             }
         });
 
         window.addEventListener('keyup', (e) => {
             const key = e.key.toLowerCase();
             if (key in keys) keys[key] = false;
+            if (e.code === 'Space') keys.space = false;
         });
 
         // Handle window resize
@@ -972,9 +913,13 @@
         });
 
         // Animation loop - simulate walking on sphere surface
-        const moveSpeed = 0.008;
-        const turnSpeed = 0.025;
+        const moveSpeed = 0.0015; // Half speed
+        const turnSpeed = 0.0075; // Half speed turning
         let characterRotation = 0; // Which direction character faces (yaw)
+
+        // Day/night cycle
+        const dayNightSpeed = 0.005; // Rotation speed for sun/moon (very slow to prevent disorienting shadows)
+        let dayNightAngle = 0;
         
         const clock = new THREE.Clock();
 
@@ -984,123 +929,8 @@
             const deltaTime = clock.getDelta();
             const time = clock.getElapsedTime();
 
-            // Climbing intro animation
-            if (climbingSystem.active && climbingSystem.isClimbing) {
-                climbingSystem.climbProgress += deltaTime;
-                const climbT = Math.min(climbingSystem.climbProgress / climbingSystem.climbAnimDuration, 1);
-
-                // Ease out for smooth climb
-                const easeClimb = 1 - Math.pow(1 - climbT, 3);
-
-                // Calculate character vertical position during climb (Y-axis)
-                const totalClimbHeight = characterDistance - climbingSystem.startY;
-                const stepHeight = totalClimbHeight / climbingSystem.maxClimbSteps;
-                const targetY = climbingSystem.startY + (climbingSystem.climbSteps * stepHeight);
-                const previousY = climbingSystem.startY + ((climbingSystem.climbSteps - 1) * stepHeight);
-
-                characterGroup.position.y = THREE.MathUtils.lerp(previousY, targetY, easeClimb);
-
-                // Hand reach animation (simulate climbing motion)
-                const reachCycle = climbT * Math.PI * 2;
-                characterParts.leftArm.rotation.x = -0.5 + Math.sin(reachCycle) * 0.8;
-                characterParts.rightArm.rotation.x = -0.5 + Math.sin(reachCycle + Math.PI) * 0.8;
-                characterParts.leftArm.rotation.z = -0.3;
-                characterParts.rightArm.rotation.z = 0.3;
-
-                // Body pull-up motion
-                characterParts.body.rotation.x = Math.sin(reachCycle) * 0.2;
-
-                // Camera positioning throughout climb
-                if (climbingSystem.climbSteps <= climbingSystem.peekOutStep) {
-                    // First-person view in cave (looking slightly up as we climb)
-                    const headBob = Math.sin(climbT * Math.PI) * 0.08;
-                    const breathe = Math.sin(climbT * Math.PI) * 0.05;
-
-                    camera.position.x = 0;
-                    camera.position.y = characterGroup.position.y + 0.6 + headBob;
-                    camera.position.z = -10 + breathe; // Slight forward/back motion
-
-                    // Look slightly upward as we climb
-                    const lookUpAmount = climbingSystem.climbSteps / climbingSystem.peekOutStep;
-                    camera.lookAt(0, characterGroup.position.y + 1 + lookUpAmount, -9);
-
-                    // Show planet when we reach peek-out step
-                    if (climbingSystem.climbSteps === climbingSystem.peekOutStep && !climbingSystem.cameraTransitionStarted) {
-                        climbingSystem.cameraTransitionStarted = true;
-                        planetGroup.visible = true;
-                    }
-                } else {
-                    // Transition to third-person after peek-out
-                    // Transition progress (0 to 1) over remaining steps
-                    const stepsAfterPeek = climbingSystem.climbSteps - climbingSystem.peekOutStep;
-                    const remainingSteps = climbingSystem.maxClimbSteps - climbingSystem.peekOutStep;
-                    const transitionProgress = stepsAfterPeek / remainingSteps;
-                    const smoothTransition = transitionProgress * easeClimb;
-
-                    // Interpolate from first-person to third-person camera
-                    const fpCamX = 0;
-                    const fpCamY = characterGroup.position.y + 0.6;
-                    const fpCamZ = -10;
-                    const tpCamX = 0;
-                    const tpCamY = characterDistance + cameraHeight;
-                    const tpCamZ = -cameraDistance;
-
-                    camera.position.x = THREE.MathUtils.lerp(fpCamX, tpCamX, smoothTransition);
-                    camera.position.y = THREE.MathUtils.lerp(fpCamY, tpCamY, smoothTransition);
-                    camera.position.z = THREE.MathUtils.lerp(fpCamZ, tpCamZ, smoothTransition);
-
-                    // Interpolate look-at target - look at character as camera pulls back
-                    const fpLookX = 0;
-                    const fpLookY = characterGroup.position.y + 1.5;
-                    const fpLookZ = -9;
-                    const tpLookX = 0;
-                    const tpLookY = characterGroup.position.y; // Look at character position
-                    const tpLookZ = 0;
-
-                    const lookX = THREE.MathUtils.lerp(fpLookX, tpLookX, smoothTransition);
-                    const lookY = THREE.MathUtils.lerp(fpLookY, tpLookY, smoothTransition);
-                    const lookZ = THREE.MathUtils.lerp(fpLookZ, tpLookZ, smoothTransition);
-                    camera.lookAt(lookX, lookY, lookZ);
-
-                    // Fade out cave
-                    const fadeProgress = Math.min(smoothTransition * 1.5, 1);
-                    caveGroup.traverse((obj) => {
-                        if (obj.material) {
-                            obj.material.opacity = 1 - fadeProgress;
-                            obj.material.transparent = true;
-                        }
-                    });
-
-                    // Increase ambient light
-                    ambientLight.intensity = THREE.MathUtils.lerp(0.3, 1.5, fadeProgress);
-                }
-
-                // Finish climb animation step
-                if (climbT >= 1) {
-                    climbingSystem.isClimbing = false;
-                    climbingSystem.climbProgress = 0;
-
-                    // Check if fully climbed out
-                    if (climbingSystem.climbSteps >= climbingSystem.maxClimbSteps) {
-                        // Transition to normal gameplay
-                        climbingSystem.active = false;
-                        introActive = false;
-                        caveGroup.visible = false;
-                        characterGroup.position.y = characterDistance;
-                        characterGroup.position.z = 0;
-                        characterGroup.position.x = 0;
-                        characterRotation = 0;
-
-                        // Reset arm positions
-                        characterParts.leftArm.rotation.z = 0;
-                        characterParts.rightArm.rotation.z = 0;
-                        characterParts.body.rotation.x = 0;
-                    }
-                }
-            }
-
             // Character animation - walking cycle
-            if (animationState.isWalking && !climbingSystem.active) {
+            if (animationState.isWalking) {
                 // Advance walk cycle
                 animationState.walkCycle += deltaTime * animationState.walkSpeed;
 
@@ -1108,7 +938,7 @@
                 const cycle = animationState.walkCycle;
 
                 // Head bob (up and down)
-                characterParts.head.position.y = 0.8 + Math.sin(cycle * 2) * animationState.headBobAmount;
+                characterParts.head.position.y = 0.33 + Math.sin(cycle * 2) * animationState.headBobAmount;
 
                 // Arm swing (opposite to legs)
                 characterParts.leftArm.rotation.x = Math.sin(cycle) * animationState.armSwingAmount;
@@ -1122,7 +952,7 @@
                 characterParts.body.rotation.x = Math.sin(cycle * 2) * 0.05;
             } else {
                 // Idle pose - reset to neutral with smooth transition
-                characterParts.head.position.y += (0.8 - characterParts.head.position.y) * 0.1;
+                characterParts.head.position.y += (0.33 - characterParts.head.position.y) * 0.1;
                 characterParts.leftArm.rotation.x *= 0.9;
                 characterParts.rightArm.rotation.x *= 0.9;
                 characterParts.leftLeg.rotation.x *= 0.9;
@@ -1191,6 +1021,39 @@
                 rainSystem.particles.attributes.position.needsUpdate = true;
             });
 
+            // Day/night cycle - rotate sun and moon around planet
+            dayNightAngle += dayNightSpeed * deltaTime;
+
+            // Calculate new sun position (rotates around X-axis)
+            const sunRotationAxis = new THREE.Vector3(1, 0, 0);
+            const sunBasePosition = new THREE.Vector3(10, 10, 10).normalize().multiplyScalar(sunDistance);
+            sun.position.copy(sunBasePosition);
+            sun.position.applyAxisAngle(sunRotationAxis, dayNightAngle);
+            sunGlow.position.copy(sun.position);
+            sunGlow2.position.copy(sun.position);
+            sunLight.position.copy(sun.position);
+
+            // Make sun light always point at planet center for proper shadows
+            sunLight.target.position.set(0, 0, 0);
+            sunLight.target.updateMatrixWorld();
+
+            // Moon is opposite to sun
+            moon.position.copy(sun.position).multiplyScalar(-1);
+            moonGlow.position.copy(moon.position);
+            moonLight.position.copy(moon.position);
+            moonDirectionalLight.position.copy(moon.position);
+
+            // Make moon light point at planet center too
+            moonDirectionalLight.target.position.set(0, 0, 0);
+            moonDirectionalLight.target.updateMatrixWorld();
+
+            // Update atmosphere shader with current sun direction
+            // Get sun's world position (accounting for planetGroup rotation)
+            const sunWorldPos = new THREE.Vector3();
+            sun.getWorldPosition(sunWorldPos);
+            const sunDir = sunWorldPos.normalize();
+            atmosphereMaterial.uniforms.sunDirection.value.copy(sunDir);
+
             // Animate interactive signs
             signs.forEach((signData) => {
                 // Pulse indicator animation
@@ -1248,10 +1111,62 @@
 
             // Normal gameplay after intro
             if (!introActive) {
-                // Ensure character stays at planet surface
-                characterGroup.position.y = characterDistance;
-                characterGroup.position.z = 0;
+                // Apply gravity
+                physics.velocity.y -= physics.gravity * deltaTime;
+
+                // Calculate new position
+                const newY = characterGroup.position.y + physics.velocity.y * deltaTime;
+
+                // Raycast downward from character's feet position to detect ground
+                const rayOrigin = new THREE.Vector3(
+                    characterGroup.position.x,
+                    characterGroup.position.y - characterHeight + 0.05, // Start ray from feet
+                    characterGroup.position.z
+                );
+
+                raycaster.set(rayOrigin, downVector);
+                raycaster.far = 50; // Long raycast to detect ground far below
+
+                // Get all meshes in the planet group for collision
+                const collisionMeshes = [];
+                planetGroup.traverse((child) => {
+                    if (child.isMesh) {
+                        collisionMeshes.push(child);
+                    }
+                });
+
+                const intersects = raycaster.intersectObjects(collisionMeshes, false);
+
+                if (intersects.length > 0) {
+                    // Found ground below feet
+                    const groundY = intersects[0].point.y;
+                    // Character position should be groundY + characterHeight (since position is at center)
+                    const targetY = groundY + characterHeight;
+                    const feetY = characterGroup.position.y - characterHeight;
+                    const distanceToGround = feetY - groundY;
+
+                    // Small tolerance for being "on ground" (prevents floating)
+                    const groundTolerance = 0.02;
+
+                    if (distanceToGround <= groundTolerance && physics.velocity.y <= 0) {
+                        // We're on or very close to the ground, snap to it
+                        characterGroup.position.y = targetY;
+                        physics.velocity.y = 0;
+                        physics.isGrounded = true;
+                    } else {
+                        // Still in air, apply velocity
+                        characterGroup.position.y = newY;
+                        physics.isGrounded = false;
+                    }
+                } else {
+                    // No ground detected, keep falling
+                    characterGroup.position.y = newY;
+                    physics.isGrounded = false;
+                }
+
+                // Keep character centered at origin (only Y position changes, planet rotates beneath)
                 characterGroup.position.x = 0;
+                characterGroup.position.z = 0;
 
                 // Handle rotation with A/D keys (turn character left/right)
                 if (keys.a) {
@@ -1291,41 +1206,28 @@
                     const rotation = new THREE.Quaternion();
                     rotation.setFromAxisAngle(rotationAxis, direction * moveSpeed);
 
-                    // Check collision with obstacles before moving
+                    // Check for obstacles ahead (prevent walking up steps)
                     let collision = false;
-                    const characterRadius = 0.4; // Character collision radius (tight fit)
 
-                    for (let obstacle of obstacles) {
-                        // Get current world position of obstacle (after current planet rotation)
-                        obstacle.mesh.updateMatrixWorld();
-                        const currentObstacleWorldPos = new THREE.Vector3();
-                        obstacle.mesh.getWorldPosition(currentObstacleWorldPos);
+                    // Raycast forward to check for steps/walls
+                    const forwardRayOrigin = new THREE.Vector3(0, characterGroup.position.y, 0);
+                    const forwardDirection = new THREE.Vector3(
+                        -Math.sin(characterRotation) * direction,
+                        0,
+                        -Math.cos(characterRotation) * direction
+                    );
 
-                        // Character is at (0, characterDistance, 0) in world space
-                        const characterPos = new THREE.Vector3(0, characterDistance, 0);
+                    const forwardRaycaster = new THREE.Raycaster(forwardRayOrigin, forwardDirection, 0, 0.3);
+                    const forwardIntersects = forwardRaycaster.intersectObjects(collisionMeshes, false);
 
-                        // Calculate current distance
-                        const currentDistance = characterPos.distanceTo(currentObstacleWorldPos);
+                    if (forwardIntersects.length > 0) {
+                        // Check if there's a step/obstacle ahead
+                        const obstacleHeight = forwardIntersects[0].point.y;
+                        const stepHeight = obstacleHeight - (characterGroup.position.y - characterHeight);
 
-                        // Check collision using combined radii (tighter threshold)
-                        const collisionDistance = obstacle.radius + characterRadius;
-
-                        // Only check if very close to obstacle
-                        if (currentDistance < collisionDistance * 1.1) {
-                            // Test if we would get closer after rotation
-                            const testQuaternion = planetGroup.quaternion.clone();
-                            testQuaternion.multiplyQuaternions(rotation, testQuaternion);
-
-                            const testObstaclePos = obstacle.position.clone();
-                            testObstaclePos.applyQuaternion(testQuaternion);
-
-                            const futureDistance = characterPos.distanceTo(testObstaclePos);
-
-                            // Block movement only if we're actually colliding or would penetrate
-                            if (futureDistance < collisionDistance) {
-                                collision = true;
-                                break;
-                            }
+                        // If step is higher than 0.1 units, require jump (no auto step-up)
+                        if (stepHeight > 0.1) {
+                            collision = true;
                         }
                     }
 
@@ -1346,7 +1248,7 @@
                 camera.position.copy(characterGroup.position).add(cameraOffsetWorld);
 
                 // Look at point slightly above and in front of character (following their direction)
-                const lookAtOffset = new THREE.Vector3(0, 0.5, 1);
+                const lookAtOffset = new THREE.Vector3(0, characterHeight, 1);
                 lookAtOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), characterRotation);
                 const lookAtPoint = characterGroup.position.clone().add(lookAtOffset);
                 camera.lookAt(lookAtPoint);
