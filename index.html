@@ -34,6 +34,17 @@
             font-size: 14px;
             font-family: monospace;
         }
+        .sign-label {
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: Arial, sans-serif;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            pointer-events: none;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -44,8 +55,11 @@
         A - Turn left<br>
         D - Turn right<br>
         SPACE - Jump<br>
+        Middle Mouse - Detach camera<br>
+        Scroll - Zoom (detached)<br>
+        R - Return to player<br>
         <br>
-        Walk around the planet!
+        <span id="camera-mode-text">Walk around the planet!</span>
     </div>
 
     <div id="coordinates">
@@ -113,6 +127,7 @@
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
         // Scene setup
         const scene = new THREE.Scene();
@@ -126,6 +141,14 @@
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
+        // CSS2D Renderer for sign labels
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        document.body.appendChild(labelRenderer.domElement);
+
         // Lighting
         const ambientLight = new THREE.AmbientLight(0x808080, 2.5);
         scene.add(ambientLight);
@@ -133,40 +156,175 @@
         const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
         sunLight.position.set(10, 10, 10);
         sunLight.castShadow = true;
-        sunLight.shadow.camera.left = -20;
-        sunLight.shadow.camera.right = 20;
-        sunLight.shadow.camera.top = 20;
-        sunLight.shadow.camera.bottom = -20;
+        sunLight.shadow.camera.left = -30;
+        sunLight.shadow.camera.right = 30;
+        sunLight.shadow.camera.top = 30;
+        sunLight.shadow.camera.bottom = -30;
         sunLight.shadow.camera.near = 0.5;
-        sunLight.shadow.camera.far = 100;
-        sunLight.shadow.mapSize.width = 2048;
-        sunLight.shadow.mapSize.height = 2048;
-        sunLight.shadow.bias = -0.001;
-        sunLight.shadow.normalBias = 0.02;
+        sunLight.shadow.camera.far = 150;
+        sunLight.shadow.mapSize.width = 8192;
+        sunLight.shadow.mapSize.height = 8192;
+        sunLight.shadow.bias = -0.0005;
+        sunLight.shadow.normalBias = 0.01;
+        sunLight.shadow.radius = 1;
 
         // Planet
         const planetRadius = 16;
-        
+
         const planetGroup = new THREE.Group();
         planetGroup.add(sunLight);
         scene.add(planetGroup);
+
+        // Store sign labels and their world positions for proximity detection
+        const signLabels = [];
+
+        // Store spawn cube reference
+        let spawnCube = null;
+
+        // Blender-style camera controls
+        let detachedCamera = false;
+        let detachedCameraDistance = 5;
+        let detachedCameraRotation = { theta: 0, phi: Math.PI / 4 }; // Spherical coordinates
+        let detachedCameraTarget = new THREE.Vector3(0, 0, 0);
+        const minCameraDistance = 2;
+        const maxCameraDistance = 50;
+
+        // Sign content data
+        const signData = {
+            'sign1': 'Press enter to teleport back to your crash landing.',
+            'sign2': 'These were the base for me to grow my creative interests...',
+            'sign3': 'Walk left to read my life story, right for my professional journey.', // second
+            'sign4': 'Other interests/hobbies.',
+            'sign5': 'This way to see my hobbies/passions.',
+            'sign6': 'Then, I started exploring the adirondacks.',
+            "sign7": "Welcome to my world. Please, explore what I've created.", // Start sign
+            'sign8': 'I was born in Guangzhou, China.', // third
+            'sign9': 'We moved to the US. My father had family there.', // left 2
+            'sign10': 'At 18, I got accepted to Colorado College.', // left three
+            'sign11': 'I am now a junior.',
+            'sign12': "I'm currently doing research for a professor at the Colorado School of Mines regarding the stigma around mental health.",
+            'sign13': "Here's a list of my project: Super mario A* and Theta* Pathfinder in C, Top-Down Adventure Game in Java, Stock Tracker using Alpaca. (a gallery area)",
+            'sign14': 'Dabbling in Cybersecurity: Certification in eJPT, working on the PNPT.',
+            'sign15': 'Future projects: TBD',
+            'sign16': '1',
+            'sign17': '2',
+            'sign18': '3',
+            'sign19': '4',
+            'sign20': 'My love of the outdoors started with kayaking the lakes of NY.',
+            'sign21': 'Click the sign to see photography portfolio.',
+            'sign22': 'Click the sign to see my videography portfolio.',
+            'sign23': 'Thank You for Visiting!'
+        };
 
         // Load the Blender world model
         const planetLoader = new GLTFLoader();
         planetLoader.load('world-only.glb', function(gltf) {
             const planet = gltf.scene;
-            
+
             planet.traverse((child) => {
                 if (child.isMesh) {
-                    const isGround = child.name.toLowerCase().includes('ground');
+                    const name = child.name.toLowerCase();
+                    const isGround = name.includes('ground');
+
                     child.castShadow = !isGround;
                     child.receiveShadow = true;
-                    console.log(`Mesh: ${child.name}, castShadow: ${!isGround}, receiveShadow: true`);
+
+                    // Log all meshes to help debug spawn detection
+                    if (name.includes('spawn')) {
+                        console.log(`>>> SPAWN MESH FOUND: "${child.name}" (lowercase: "${name}")`);
+                    }
+
+                    // Check if this is the spawn cube (check exact name or contains 'spawn')
+                    if (name === 'spawn' || name.includes('spawn')) {
+                        spawnCube = child;
+                        console.log(`Found spawn cube: "${child.name}" (original: "${child.name}") at local position:`, child.position);
+                    }
+
+                    // Check if this is a sign
+                    if (child.name.toLowerCase().includes('sign')) {
+                        const signName = child.name.toLowerCase();
+                        const signText = signData[signName] || `Sign: ${child.name}`;
+
+                        // Create label div
+                        const labelDiv = document.createElement('div');
+                        labelDiv.className = 'sign-label';
+                        labelDiv.textContent = signText;
+
+                        // Create CSS2DObject
+                        const label = new CSS2DObject(labelDiv);
+                        label.visible = false; // Hidden by default
+
+                        // Get world position of the sign for proximity checking
+                        child.updateWorldMatrix(true, false);
+                        const signWorldPos = new THREE.Vector3();
+                        child.getWorldPosition(signWorldPos);
+
+                        // Position label above the sign in local space
+                        // Use a fixed height that works well visually
+                        label.position.set(0, -22, 0); // 1.2 units above the sign in local space
+                        child.add(label);
+
+                        // Store reference for proximity checking
+                        signLabels.push({
+                            labelObject: label,
+                            mesh: child,
+                            worldPos: signWorldPos
+                        });
+
+                        console.log(`Created label for ${child.name}: "${signText}"`);
+                    }
                 }
             });
-            
+
             planetGroup.add(planet);
             console.log('Blender world model loaded successfully');
+
+            // Rotate planet so spawn cube is at character position (0, y, 0)
+            console.log('Checking for spawn cube...', spawnCube ? 'Found!' : 'Not found');
+            if (spawnCube) {
+                // Get the spawn cube's position within the planet's local coordinate system
+                // We need to traverse up to find the position in planet's space
+                let spawnLocalPos = new THREE.Vector3();
+                spawnCube.getWorldPosition(spawnLocalPos);
+
+                // Convert world position to planet's local space
+                const planetWorldToLocal = new THREE.Matrix4();
+                planetWorldToLocal.copy(planetGroup.matrixWorld).invert();
+                spawnLocalPos.applyMatrix4(planetWorldToLocal);
+
+                console.log(`Spawn cube position in planet space: (${spawnLocalPos.x.toFixed(2)}, ${spawnLocalPos.y.toFixed(2)}, ${spawnLocalPos.z.toFixed(2)})`);
+
+                // Normalize the position to get direction on the sphere surface
+                const spawnDirection = spawnLocalPos.clone().normalize();
+
+                // We want this direction to point "up" (0, 1, 0) after rotation
+                // Calculate the rotation needed
+                const upVector = new THREE.Vector3(0, 1, 0);
+                const rotationAxis = new THREE.Vector3().crossVectors(spawnDirection, upVector).normalize();
+                const rotationAngle = Math.acos(spawnDirection.dot(upVector));
+
+                console.log(`Rotation angle: ${(rotationAngle * 180 / Math.PI).toFixed(2)} degrees`);
+                console.log(`Rotation axis: (${rotationAxis.x.toFixed(2)}, ${rotationAxis.y.toFixed(2)}, ${rotationAxis.z.toFixed(2)})`);
+
+                // Apply the rotation
+                const spawnRotation = new THREE.Quaternion();
+                spawnRotation.setFromAxisAngle(rotationAxis, rotationAngle);
+                planetGroup.quaternion.copy(spawnRotation);
+
+                // Update matrices
+                planetGroup.updateMatrixWorld(true);
+
+                // Get spawn position for character height
+                spawnCube.geometry.computeBoundingBox();
+                const bbox = spawnCube.geometry.boundingBox;
+                const cubeHeight = bbox.max.y - bbox.min.y;
+
+                // Character height should be at the planet radius + spawn offset
+                const spawnHeight = spawnLocalPos.length();
+                characterGroup.position.set(0, spawnHeight + cubeHeight / 2 + 2.0, 0);
+
+                console.log(`Character spawned at height: ${characterGroup.position.y.toFixed(2)}`);
+            }
         }, undefined, function(error) {
             console.error('Error loading world model:', error);
         });
@@ -393,10 +551,26 @@
         const rainClouds = [];
 
         // Camera setup
-        const cameraDistance = 1.5;
-        const cameraHeight = 1.2; // Lifted higher
+        const cameraDistanceIdle = 1.2;      // Camera distance when idle (closer)
+        const cameraDistanceWalking = 1.7;   // Camera distance when walking (zoomed out more)
+        const cameraHeight = 1.0; // Camera vertical position
+        let currentCameraDistance = cameraDistanceIdle;
 
-        camera.position.set(0, spawnHeight + cameraHeight, -cameraDistance);
+        // Camera sway variables - adjust these to tune the effect
+        let cameraShakeOffset = new THREE.Vector3(0, 0, 0);
+        const cameraSwayIntensity = 0.003;  // Overall sway amount (increase for more movement)
+        const cameraSwaySpeed = 25.0;        // Waddle rhythm speed (higher = faster sway)
+        const swaySideAmount = 1;         // Side-to-side intensity multiplier
+        const swayBobAmount = 0.4;          // Up-down bob intensity multiplier
+        const swayRockAmount = 0;         // Forward-back rock intensity multiplier
+
+        // Movement acceleration
+        let currentMoveSpeed = 0.0;
+        const maxMoveSpeed = 0.2;
+        const moveAcceleration = 0.8; // Speed ramping per second
+        const moveDeceleration = 1.5; // Faster stop
+
+        camera.position.set(0, spawnHeight + cameraHeight, -cameraDistanceIdle);
         camera.lookAt(0, spawnHeight, 0);
 
         // Input handling
@@ -405,7 +579,8 @@
             a: false,
             s: false,
             d: false,
-            space: false
+            space: false,
+            shift: false
         };
 
         // Physics
@@ -422,6 +597,58 @@
 
         let introActive = true;
 
+        // Mouse controls for Blender-style camera
+        let isMiddleMouseDown = false;
+        const rotationSensitivity = 0.005;
+
+        document.addEventListener('mousedown', (e) => {
+            if (e.button === 1 && !introActive) { // Middle mouse button
+                e.preventDefault();
+                isMiddleMouseDown = true;
+
+                if (!detachedCamera) {
+                    // Entering detached camera mode
+                    detachedCamera = true;
+                    detachedCameraTarget.copy(characterGroup.position);
+
+                    // Calculate initial spherical coordinates from current camera position
+                    const cameraToTarget = new THREE.Vector3().subVectors(camera.position, detachedCameraTarget);
+                    detachedCameraDistance = cameraToTarget.length();
+                    detachedCameraRotation.theta = Math.atan2(cameraToTarget.x, cameraToTarget.z);
+                    detachedCameraRotation.phi = Math.acos(cameraToTarget.y / detachedCameraDistance);
+
+                    document.getElementById('camera-mode-text').textContent = 'Detached Camera - Middle Mouse: Rotate, Scroll: Zoom, R: Return to Player';
+                    console.log('Detached camera mode - Middle mouse to rotate, scroll to zoom, R to return');
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (e.button === 1) {
+                isMiddleMouseDown = false;
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isMiddleMouseDown && detachedCamera) {
+                detachedCameraRotation.theta -= e.movementX * rotationSensitivity;
+                detachedCameraRotation.phi -= e.movementY * rotationSensitivity;
+
+                // Clamp phi to prevent flipping
+                detachedCameraRotation.phi = Math.max(0.1, Math.min(Math.PI - 0.1, detachedCameraRotation.phi));
+            }
+        });
+
+        // Scroll wheel for zoom
+        document.addEventListener('wheel', (e) => {
+            if (detachedCamera && !introActive) {
+                e.preventDefault();
+                const zoomSpeed = 0.1;
+                detachedCameraDistance += e.deltaY * zoomSpeed;
+                detachedCameraDistance = Math.max(minCameraDistance, Math.min(maxCameraDistance, detachedCameraDistance));
+            }
+        }, { passive: false });
+
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
 
@@ -434,8 +661,19 @@
                 return;
             }
 
+            // Return to player with 'R' key
+            if (key === 'r' && !introActive && detachedCamera) {
+                detachedCamera = false;
+                isMiddleMouseDown = false;
+                document.getElementById('camera-mode-text').textContent = 'Walk around the planet!';
+                console.log('Returned to player-locked camera');
+            }
+
             if (key in keys && !introActive) {
                 keys[key] = true;
+            }
+            if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+                keys.shift = true;
             }
 
             if (e.code === 'Space' && !introActive && physics.isGrounded) {
@@ -448,19 +686,23 @@
             const key = e.key.toLowerCase();
             if (key in keys) keys[key] = false;
             if (e.code === 'Space') keys.space = false;
+            if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+                keys.shift = false;
+            }
         });
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
         });
 
         // Animation loop
-        const moveSpeed = 0.0008; // Slowed down character movement
-        const turnSpeed = 0.006; // Turn speed slightly increased
-        let characterRotation = 0;
-        const dayNightSpeed = 0.05; // Increased for testing
+        const moveSpeed = 0.2; // Movement speed per second (radians)
+        const turnSpeed = 2; // Turn speed per second (radians)
+        let characterRotation = Math.PI; // Start rotated 180 degrees
+        const dayNightSpeed = 0.025; // Day/night cycle speed
         let dayNightAngle = 0;
         
         const clock = new THREE.Clock();
@@ -526,19 +768,22 @@
             moonDirectionalLight.target.position.set(0, 0, 0);
             moonDirectionalLight.target.updateMatrixWorld();
 
+            // Update atmosphere shader with sun direction
             const sunWorldPos = new THREE.Vector3();
             sun.getWorldPosition(sunWorldPos);
-            const sunDir = sunWorldPos.normalize();
+            // Normalize to get direction from planet center (0,0,0) to sun
+            const sunDir = sunWorldPos.clone().sub(new THREE.Vector3(0, 0, 0)).normalize();
             atmosphereMaterial.uniforms.sunDirection.value.copy(sunDir);
 
             // Gameplay
             if (!introActive) {
+                // Character physics and movement (works in both modes)
                 physics.velocity.y -= physics.gravity * deltaTime;
                 const newY = characterGroup.position.y + physics.velocity.y * deltaTime;
 
                 const rayOrigin = new THREE.Vector3(
                     characterGroup.position.x,
-                    characterGroup.position.y, // Start from character center
+                    characterGroup.position.y,
                     characterGroup.position.z
                 );
 
@@ -548,7 +793,10 @@
                 const collisionMeshes = [];
                 planetGroup.traverse((child) => {
                     if (child.isMesh) {
-                        collisionMeshes.push(child);
+                        const name = child.name.toLowerCase();
+                        if (!name.includes('grass') && !name.includes('pebble')) {
+                            collisionMeshes.push(child);
+                        }
                     }
                 });
 
@@ -556,8 +804,7 @@
 
                 if (intersects.length > 0) {
                     const groundY = intersects[0].point.y;
-                    // Offset character slightly above ground to prevent clipping
-                    const groundOffset = 0.028;
+                    const groundOffset = 0.03;
                     const targetY = groundY + groundOffset;
                     const distanceToGround = characterGroup.position.y - groundY;
                     const groundTolerance = 0.1;
@@ -575,25 +822,36 @@
                     physics.isGrounded = false;
                 }
 
-                // Update coordinates display
                 document.getElementById('coordinates').textContent =
                     `Position: (${characterGroup.position.x.toFixed(2)}, ${characterGroup.position.y.toFixed(2)}, ${characterGroup.position.z.toFixed(2)})`;
 
                 characterGroup.position.x = 0;
                 characterGroup.position.z = 0;
 
+                const isTurning = keys.a || keys.d;
+
                 if (keys.a) {
-                    characterRotation += turnSpeed;
+                    characterRotation += turnSpeed * deltaTime;
                 }
                 if (keys.d) {
-                    characterRotation -= turnSpeed;
+                    characterRotation -= turnSpeed * deltaTime;
                 }
 
                 characterGroup.rotation.y = characterRotation;
 
-                if (keys.w || keys.s) {
+                if (keys.w || keys.s || isTurning) {
                     animationState.isWalking = true;
+                } else {
+                    animationState.isWalking = false;
+                }
 
+                if (keys.w || keys.s) {
+                    currentMoveSpeed = Math.min(currentMoveSpeed + moveAcceleration * deltaTime, maxMoveSpeed);
+                } else {
+                    currentMoveSpeed = Math.max(currentMoveSpeed - moveDeceleration * deltaTime, 0);
+                }
+
+                if (currentMoveSpeed > 0 && (keys.w || keys.s)) {
                     const direction = keys.w ? -1 : 1;
 
                     const forwardWorld = new THREE.Vector3(
@@ -608,7 +866,7 @@
                     ).normalize();
 
                     const rotation = new THREE.Quaternion();
-                    rotation.setFromAxisAngle(rotationAxis, direction * moveSpeed);
+                    rotation.setFromAxisAngle(rotationAxis, direction * currentMoveSpeed * deltaTime);
 
                     let collision = false;
 
@@ -627,7 +885,6 @@
                         const obstacleDistance = forwardIntersects[0].distance;
                         const stepHeight = obstacleHeight - (characterGroup.position.y - characterHeight);
 
-                        // Block if obstacle is tall (like a wall) or close enough to prevent arm clipping
                         if (stepHeight > 0.05 || obstacleDistance < 0.15) {
                             collision = true;
                         }
@@ -636,24 +893,72 @@
                     if (!collision) {
                         planetGroup.quaternion.multiplyQuaternions(rotation, planetGroup.quaternion);
                     }
-                } else {
-                    animationState.isWalking = false;
                 }
 
-                // Update camera
-                const cameraOffsetLocal = new THREE.Vector3(0, cameraHeight, -cameraDistance);
-                const cameraOffsetWorld = cameraOffsetLocal.clone();
-                cameraOffsetWorld.applyAxisAngle(new THREE.Vector3(0, 1, 0), characterRotation);
+                // Camera update based on mode
+                if (detachedCamera) {
+                    // Detached camera mode - orbit around world center
+                    detachedCameraTarget.set(0, 0, 0);
 
-                camera.position.copy(characterGroup.position).add(cameraOffsetWorld);
+                    const x = detachedCameraTarget.x + detachedCameraDistance * Math.sin(detachedCameraRotation.phi) * Math.sin(detachedCameraRotation.theta);
+                    const y = detachedCameraTarget.y + detachedCameraDistance * Math.cos(detachedCameraRotation.phi);
+                    const z = detachedCameraTarget.z + detachedCameraDistance * Math.sin(detachedCameraRotation.phi) * Math.cos(detachedCameraRotation.theta);
 
-                const lookAtOffset = new THREE.Vector3(0, characterHeight, 1);
-                lookAtOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), characterRotation);
-                const lookAtPoint = characterGroup.position.clone().add(lookAtOffset);
-                camera.lookAt(lookAtPoint);
+                    camera.position.set(x, y, z);
+                    camera.lookAt(detachedCameraTarget);
+                } else {
+                    // Normal player-locked camera mode - update camera position
+                    const targetCameraDistance = (keys.w || keys.s) ? cameraDistanceWalking : cameraDistanceIdle;
+                    const lerpFactor = 0.025;
+                    currentCameraDistance = currentCameraDistance + (targetCameraDistance - currentCameraDistance) * lerpFactor;
+
+                    // Update camera sway (natural walking motion)
+                    if (animationState.isWalking && currentMoveSpeed > 0) {
+                        const swayIntensity = (currentMoveSpeed / maxMoveSpeed) * cameraSwayIntensity;
+                        const waddlePhase = time * cameraSwaySpeed;
+
+                        cameraShakeOffset.x = Math.sin(waddlePhase) * swayIntensity * swaySideAmount;
+                        cameraShakeOffset.y = (1 - Math.cos(waddlePhase * 2)) * swayIntensity * swayBobAmount;
+                        cameraShakeOffset.z = Math.sin(waddlePhase * 0.5) * swayIntensity * swayRockAmount;
+                    } else {
+                        cameraShakeOffset.multiplyScalar(0.85);
+                    }
+
+                    // Update camera
+                    const cameraOffsetLocal = new THREE.Vector3(0, cameraHeight, -currentCameraDistance);
+                    const cameraOffsetWorld = cameraOffsetLocal.clone();
+                    cameraOffsetWorld.applyAxisAngle(new THREE.Vector3(0, 1, 0), characterRotation);
+
+                    camera.position.copy(characterGroup.position).add(cameraOffsetWorld).add(cameraShakeOffset);
+
+                    const lookAtOffset = new THREE.Vector3(0, characterHeight, 1);
+                    lookAtOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), characterRotation);
+                    const lookAtPoint = characterGroup.position.clone().add(lookAtOffset);
+                    camera.lookAt(lookAtPoint);
+                }
+
+                // Check proximity to signs and show/hide labels
+                const proximityRadius = 1.0; // Show labels within 1.0 units
+
+                signLabels.forEach(signInfo => {
+                    // Get current world position of the sign (accounts for planet rotation)
+                    const signWorldPos = new THREE.Vector3();
+                    signInfo.mesh.getWorldPosition(signWorldPos);
+
+                    // Calculate distance from camera to sign in world space
+                    const distance = camera.position.distanceTo(signWorldPos);
+
+                    // Show label if within radius, hide otherwise
+                    if (distance < proximityRadius) {
+                        signInfo.labelObject.visible = true;
+                    } else {
+                        signInfo.labelObject.visible = false;
+                    }
+                });
             }
 
             renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
         }
 
         animate();
