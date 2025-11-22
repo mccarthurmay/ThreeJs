@@ -71,11 +71,13 @@
             background: rgba(0, 0, 0, 0.8);
             padding: 8px 12px;
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 14px;
             font-family: Arial, sans-serif;
             border: 1px solid rgba(255, 255, 255, 0.3);
             pointer-events: none;
-            white-space: nowrap;
+            white-space: normal;
+            max-width: 300px;
+            word-wrap: break-word;
         }
     </style>
 </head>
@@ -110,14 +112,115 @@
         </iframe>
     </div>
 
+    <div id="loading-screen">
+        <div id="loading-content">
+            <h1>Max's World</h1>
+            <div id="loading-bar-container">
+                <div id="loading-bar"></div>
+            </div>
+            <p id="loading-text">Loading... 0%</p>
+            <div id="controls-info">
+                <h3>Controls</h3>
+                <p><strong>WASD</strong> - Move</p>
+                <p><strong>Space</strong> - Jump</p>
+                <p><strong>Mouse</strong> - Look around</p>
+                <p><strong>Middle Mouse</strong> - Bird's eye view</p>
+                <p><strong>R</strong> - Return to player</p>
+                <p><strong>X</strong> - Reset to spawn</p>
+            </div>
+        </div>
+    </div>
+
     <div id="intro-screen">
         <div id="intro-content">
             <h1>Max's World</h1>
             <p id="enter-prompt">Press ENTER to begin</p>
         </div>
     </div>
-    
+
     <style>
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+            transition: opacity 1s ease-out;
+        }
+
+        #loading-screen.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #loading-content {
+            text-align: center;
+            color: white;
+            max-width: 600px;
+        }
+
+        #loading-content h1 {
+            font-size: 4em;
+            margin-bottom: 40px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+        }
+
+        #loading-bar-container {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        #loading-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        #loading-text {
+            font-size: 1.2em;
+            margin-bottom: 40px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        #controls-info {
+            margin-top: 40px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #controls-info h3 {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #8BC34A;
+        }
+
+        #controls-info p {
+            font-size: 1.1em;
+            margin: 10px 0;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        #controls-info strong {
+            color: white;
+            min-width: 120px;
+            display: inline-block;
+        }
+
         #intro-screen {
             position: fixed;
             top: 0;
@@ -128,20 +231,25 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 1000;
+            z-index: 999;
+            opacity: 0;
             transition: opacity 1s ease-out;
         }
-        
+
+        #intro-screen.visible {
+            opacity: 1;
+        }
+
         #intro-screen.fade-out {
             opacity: 0;
             pointer-events: none;
         }
-        
+
         #intro-content {
             text-align: center;
             color: white;
         }
-        
+
         #intro-content h1 {
             font-size: 4em;
             margin-bottom: 30px;
@@ -149,12 +257,12 @@
             text-transform: uppercase;
             letter-spacing: 5px;
         }
-        
+
         #enter-prompt {
             font-size: 1.5em;
             animation: pulse 2s infinite;
         }
-        
+
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.3; }
@@ -247,7 +355,7 @@
             'sign6': 'Then, I started exploring the adirondacks.',
             "sign7": "WASD to move.", // Start sign
             'sign8': 'I was born in Guangzhou, China. I only lived there for a short 5 years. We left for the US, my mom making a new life and my dad returning home.', // third
-            'sign9': 'I had a great time growing up. My parents didn\'t like each other too much, but they did their best for me. Timeless memories were made with the friends I met, and now a few will remain life-long.', // left 2
+            'sign9': 'I had a great time growing up. My parents didn\'t like each other too much, but they did the best they could. Timeless memories were made with the friends I met, and now a few will remain life-long.', // left 2
             'sign10': 'Then, I took a leap of faith going to Colorado College, a small liberal arts school in Colorado Springs. I\'m grateful for who I am today, and it\'s safe to say that these past 3 years have been incredibly transformative. I wouldn\'t be who I am today if not for the people I surrounded myself with and the passions I chose to pursue.', // left three
             'sign11': 'I am now a junior.',
             'sign12': "I'm currently doing research for a professor at the Colorado School of Mines regarding the stigma around mental health.",
@@ -269,7 +377,9 @@
 
         // Load the Blender world model
         const planetLoader = new GLTFLoader();
-        planetLoader.load('world-only.glb', function(gltf) {
+        planetLoader.load('world-only.glb',
+            // onLoad callback
+            function(gltf) {
             const planet = gltf.scene;
 
             planet.traverse((child) => {
@@ -294,35 +404,39 @@
                     // Check if this is a sign
                     if (child.name.toLowerCase().includes('sign')) {
                         const signName = child.name.toLowerCase();
-                        const signText = signData[signName] || `Sign: ${child.name}`;
+                        const signText = signData[signName];
 
-                        // Create label div
-                        const labelDiv = document.createElement('div');
-                        labelDiv.className = 'sign-label';
-                        labelDiv.textContent = signText;
+                        // Only create label if sign has text defined
+                        if (signText) {
+                            // Create label div
+                            const labelDiv = document.createElement('div');
+                            labelDiv.className = 'sign-label';
+                            labelDiv.textContent = signText;
 
-                        // Create CSS2DObject
-                        const label = new CSS2DObject(labelDiv);
-                        label.visible = false; // Hidden by default
+                            // Create CSS2DObject
+                            const label = new CSS2DObject(labelDiv);
+                            label.visible = false; // Hidden by default
 
-                        // Get world position of the sign for proximity checking
-                        child.updateWorldMatrix(true, false);
-                        const signWorldPos = new THREE.Vector3();
-                        child.getWorldPosition(signWorldPos);
+                            // Get world position of the sign for proximity checking
+                            child.updateWorldMatrix(true, false);
+                            const signWorldPos = new THREE.Vector3();
+                            child.getWorldPosition(signWorldPos);
 
-                        // Position label above the sign in local space
-                        // Use a fixed height that works well visually
-                        label.position.set(0, -22, 0); // 1.2 units above the sign in local space
-                        child.add(label);
+                            // Position label directly on the sign (centered on the mesh)
+                            label.position.set(0, -10, 0);
+                            child.add(label);
 
-                        // Store reference for proximity checking
-                        signLabels.push({
-                            labelObject: label,
-                            mesh: child,
-                            worldPos: signWorldPos
-                        });
+                            // Store reference for proximity checking
+                            signLabels.push({
+                                labelObject: label,
+                                mesh: child,
+                                worldPos: signWorldPos
+                            });
 
-                        console.log(`Created label for ${child.name}: "${signText}"`);
+                            console.log(`Created label for ${child.name}: "${signText}"`);
+                        } else {
+                            console.log(`Skipped label for ${child.name}: no text defined`);
+                        }
                     }
                 }
             });
@@ -372,7 +486,7 @@
 
                 // Character height should be at the planet radius + spawn offset
                 const spawnHeight = spawnLocalPos.length();
-                const spawnY = spawnHeight + cubeHeight / 2 + 2.0;
+                const spawnY = spawnHeight + cubeHeight / 2 + 3.0;
                 characterGroup.position.set(0, spawnY, 0);
 
                 // Store spawn state globally for reset
@@ -381,8 +495,43 @@
 
                 console.log(`Character spawned at height: ${characterGroup.position.y.toFixed(2)}`);
             }
-        }, undefined, function(error) {
+
+            // Hide loading screen and show intro screen after world is loaded
+            const loadingScreen = document.getElementById('loading-screen');
+            const introScreen = document.getElementById('intro-screen');
+
+            // Show intro screen immediately, then fade out loading screen
+            introScreen.classList.add('visible');
+            loadingScreen.classList.add('fade-out');
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+            }, 1000);
+        },
+        // onProgress callback
+        function(xhr) {
+            const loadingBar = document.getElementById('loading-bar');
+            const loadingText = document.getElementById('loading-text');
+
+            if (xhr.lengthComputable) {
+                const percentComplete = (xhr.loaded / xhr.total) * 100;
+                loadingBar.style.width = percentComplete + '%';
+                loadingText.textContent = `Loading... ${Math.round(percentComplete)}%`;
+                console.log(`Loading: ${Math.round(percentComplete)}% (${xhr.loaded}/${xhr.total} bytes)`);
+            } else {
+                // If not computable, show a loading animation instead
+                const mb = (xhr.loaded / 1024 / 1024).toFixed(2);
+                loadingText.textContent = `Loading... ${mb} MB`;
+                console.log(`Loading: ${mb} MB (total size unknown)`);
+                // Animate bar in indeterminate mode
+                loadingBar.style.width = '50%';
+            }
+        },
+        // onError callback
+        function(error) {
             console.error('Error loading world model:', error);
+            const loadingText = document.getElementById('loading-text');
+            loadingText.textContent = 'Error loading world. Please refresh.';
+            loadingText.style.color = '#ff5555';
         });
 
         // Character setup
@@ -851,13 +1000,22 @@
             }
         });
 
-        // Scroll wheel for zoom in/out in bird's eye view
+        // Scroll wheel for zoom in bird's eye view OR FOV adjustment in normal view
         document.addEventListener('wheel', (e) => {
-            if (detachedCamera && !introActive) {
+            if (!introActive) {
                 e.preventDefault();
-                const zoomSpeed = 0.02; // Smaller jumps for finer control
-                birdEyeDistance += e.deltaY * zoomSpeed;
-                birdEyeDistance = Math.max(8, Math.min(50, birdEyeDistance)); // Zoom range from 8 to 50 units (closer minimum)
+                if (detachedCamera) {
+                    // Bird's eye view - zoom distance
+                    const zoomSpeed = 0.02; // Smaller jumps for finer control
+                    birdEyeDistance += e.deltaY * zoomSpeed;
+                    birdEyeDistance = Math.max(8, Math.min(50, birdEyeDistance)); // Zoom range from 8 to 50 units (closer minimum)
+                } else {
+                    // Normal player view - adjust FOV
+                    const fovSpeed = 0.05;
+                    camera.fov += e.deltaY * fovSpeed;
+                    camera.fov = Math.max(40, Math.min(100, camera.fov)); // FOV range from 40 to 100
+                    camera.updateProjectionMatrix();
+                }
             }
         }, { passive: false });
 
@@ -1301,10 +1459,10 @@
 
                         // Scale font size in bird's eye view
                         if (detachedCamera) {
-                            signInfo.labelObject.element.style.fontSize = '16px';
+                            signInfo.labelObject.element.style.fontSize = '20px';
                             signInfo.labelObject.element.style.padding = '10px 14px';
                         } else {
-                            signInfo.labelObject.element.style.fontSize = '12px';
+                            signInfo.labelObject.element.style.fontSize = '14px';
                             signInfo.labelObject.element.style.padding = '8px 12px';
                         }
                     } else {
