@@ -3,19 +3,25 @@
 // ===================================
 
 import * as THREE from 'three';
-import { scene, camera, renderer, labelRenderer, characterGroup, setupWindowResize } from './scene.js';
+import { scene, camera, renderer, labelRenderer, characterGroup, planetGroup, setupWindowResize } from './scene.js';
 import { addLightingToScene, updateDayNightCycle, getSunDirection, dayNightAngle } from './lighting.js';
 import { addEnvironmentToScene, updateClouds, updateStarsOpacity, atmosphereMaterial } from './environment.js';
 import { loadCharacter, updateCharacterAnimations } from './character.js';
 import { updatePhysics, physics } from './physics.js';
 import { PerformanceManager } from './performance.js';
+import { PerformanceProfiler } from './profiler.js';
+import { RenderingOptimizer } from './rendering-optimizer.js';
+import { ShadowOptimizer } from './shadow-optimizer.js';
 import { setupSpotifyPlayer, setupTimeControls, setupEscapeMenu, updateCoordinatesDisplay, introActive } from './ui.js';
 import { loadWorld, updateSignLabels } from './world.js';
 import { setupControls, handleMovement, updateCamera, detachedCamera } from './controls.js';
 import { FIXED_TIMESTEP, CAMERA_HEIGHT, CAMERA_DISTANCE_IDLE, SPAWN_HEIGHT } from './config.js';
 
-// Initialize performance manager
-const performanceManager = new PerformanceManager();
+// Initialize systems
+export const profiler = new PerformanceProfiler();
+const renderingOptimizer = new RenderingOptimizer(camera, scene);
+export const shadowOptimizer = new ShadowOptimizer();
+const performanceManager = new PerformanceManager(renderingOptimizer, shadowOptimizer);
 
 // Clock for timing
 const clock = new THREE.Clock();
@@ -38,7 +44,7 @@ async function init() {
     // Setup UI
     setupSpotifyPlayer();
     setupTimeControls();
-    setupEscapeMenu(performanceManager);
+    setupEscapeMenu(performanceManager, profiler);
     setupControls(performanceManager);
     setupWindowResize();
 
@@ -47,6 +53,9 @@ async function init() {
         await loadWorld();
         await loadCharacter();
         console.log('All assets loaded successfully!');
+
+        // Register meshes with rendering optimizer
+        renderingOptimizer.registerMeshes(planetGroup);
     } catch (error) {
         console.error('Error loading assets:', error);
         return;
@@ -68,21 +77,31 @@ function animate() {
     // Update performance manager
     performanceManager.update(deltaTime);
 
-    // Update character animations
+    // === CHARACTER ANIMATIONS ===
+    let t = profiler.startMeasure('animations');
     updateCharacterAnimations(deltaTime, physics);
+    profiler.endMeasure('animations', t);
 
-    // Day/night cycle
+    // === DAY/NIGHT CYCLE ===
+    t = profiler.startMeasure('dayNight');
     const sunY = updateDayNightCycle(deltaTime);
+    profiler.endMeasure('dayNight', t);
 
-    // Update atmosphere shader with sun direction
+    // === ATMOSPHERE ===
+    t = profiler.startMeasure('atmosphere');
     const sunDir = getSunDirection();
     atmosphereMaterial.uniforms.sunDirection.value.copy(sunDir);
+    profiler.endMeasure('atmosphere', t);
 
-    // Fade stars based on sun position
+    // === STARS ===
+    t = profiler.startMeasure('stars');
     updateStarsOpacity(sunY);
+    profiler.endMeasure('stars', t);
 
-    // Animate clouds
+    // === CLOUDS ===
+    t = profiler.startMeasure('clouds');
     updateClouds(time, sunDir, performanceManager);
+    profiler.endMeasure('clouds', t);
 
     // Gameplay
     if (!introActive) {
@@ -99,29 +118,47 @@ function animate() {
             }
         }
 
-        // Fixed timestep physics accumulator
+        // === PHYSICS ===
+        t = profiler.startMeasure('physics');
         physicsAccumulator += deltaTime;
         while (physicsAccumulator >= FIXED_TIMESTEP) {
             updatePhysics(FIXED_TIMESTEP, introActive);
             physicsAccumulator -= FIXED_TIMESTEP;
         }
+        profiler.endMeasure('physics', t);
 
         // Update coordinates display
         updateCoordinatesDisplay(characterGroup.position);
 
-        // Handle movement
+        // === MOVEMENT ===
+        t = profiler.startMeasure('movement');
         handleMovement(deltaTime);
+        profiler.endMeasure('movement', t);
 
-        // Update camera
+        // === CAMERA ===
+        t = profiler.startMeasure('camera');
         updateCamera(time);
+        profiler.endMeasure('camera', t);
 
-        // Update sign labels
+        // === SIGN LABELS ===
+        t = profiler.startMeasure('signLabels');
         updateSignLabels(detachedCamera);
+        profiler.endMeasure('signLabels', t);
     }
 
-    // Render
+    // === FRUSTUM CULLING ===
+    t = profiler.startMeasure('culling');
+    renderingOptimizer.update();
+    profiler.endMeasure('culling', t);
+
+    // === RENDERING ===
+    t = profiler.startMeasure('rendering');
     renderer.render(scene, camera);
     labelRenderer.render(scene, camera);
+    profiler.endMeasure('rendering', t);
+
+    // Update profiler
+    profiler.update(deltaTime);
 }
 
 // Start the application

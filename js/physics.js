@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { characterGroup, planetGroup } from './scene.js';
 import { GRAVITY, CHARACTER_RADIUS, CHARACTER_HEIGHT, FIXED_TIMESTEP } from './config.js';
+import { SpatialGrid } from './spatial-grid.js';
 
 // Physics state
 export const physics = {
@@ -17,14 +18,26 @@ export const physics = {
     jumpChargeTime: 0
 };
 
-// Raycaster for collision detection
-const raycaster = new THREE.Raycaster();
+// Raycaster pool for reuse
+const raycasterPool = {
+    raycasters: [new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster()],
+    index: 0,
+    get() {
+        const rc = this.raycasters[this.index];
+        this.index = (this.index + 1) % this.raycasters.length;
+        return rc;
+    }
+};
+
 const downVector = new THREE.Vector3(0, -1, 0);
 
 // Collision meshes cache
 export let collisionMeshes = [];
 
-// Build collision meshes array once
+// Spatial grid for optimized collision detection
+export let spatialGrid = null;
+
+// Build collision meshes array and spatial grid
 export function buildCollisionMeshes() {
     collisionMeshes = [];
     planetGroup.traverse((child) => {
@@ -36,6 +49,13 @@ export function buildCollisionMeshes() {
         }
     });
     console.log(`Built collision meshes array: ${collisionMeshes.length} meshes`);
+
+    // Build spatial grid for optimized collision detection
+    spatialGrid = new SpatialGrid(5); // 5-unit cell size
+    spatialGrid.build(collisionMeshes);
+
+    const gridStats = spatialGrid.getStats();
+    console.log(`Spatial grid: ${gridStats.totalCells} cells, avg ${gridStats.avgMeshesPerCell} meshes/cell`);
 }
 
 // Physics update with swept collision detection
@@ -57,13 +77,20 @@ export function updatePhysics(dt, introActive) {
         characterGroup.position.z
     );
 
+    // Get nearby meshes using spatial grid
+    const searchRadius = 10; // Search within 10 units
+    const nearbyMeshes = spatialGrid
+        ? spatialGrid.getNearbyMeshes(rayOrigin, searchRadius)
+        : collisionMeshes;
+
     // If moving down, cast ray along movement path
     if (movementDelta < 0) {
         const movementDistance = Math.abs(movementDelta);
+        const raycaster = raycasterPool.get();
         raycaster.set(rayOrigin, downVector);
         raycaster.far = movementDistance + 1.0; // Look ahead of movement
 
-        const intersects = raycaster.intersectObjects(collisionMeshes, false);
+        const intersects = raycaster.intersectObjects(nearbyMeshes, false);
 
         if (intersects.length > 0) {
             const groundY = intersects[0].point.y;
@@ -103,9 +130,10 @@ export function updatePhysics(dt, introActive) {
     }
 
     // Safety check: if somehow below ground, teleport above
-    raycaster.set(rayOrigin, downVector);
-    raycaster.far = 50;
-    const safetyCheck = raycaster.intersectObjects(collisionMeshes, false);
+    const safetyRaycaster = raycasterPool.get();
+    safetyRaycaster.set(rayOrigin, downVector);
+    safetyRaycaster.far = 50;
+    const safetyCheck = safetyRaycaster.intersectObjects(nearbyMeshes, false);
     if (safetyCheck.length > 0) {
         const groundY = safetyCheck[0].point.y;
         if (characterGroup.position.y < groundY) {
@@ -126,8 +154,17 @@ export function checkForwardCollision(characterRotation, direction) {
         -Math.cos(characterRotation) * direction
     );
 
-    const forwardRaycaster = new THREE.Raycaster(forwardRayOrigin, forwardDirection, 0, 0.2);
-    const forwardIntersects = forwardRaycaster.intersectObjects(collisionMeshes, false);
+    // Get nearby meshes for collision check
+    const searchRadius = 5;
+    const nearbyMeshes = spatialGrid
+        ? spatialGrid.getNearbyMeshes(forwardRayOrigin, searchRadius)
+        : collisionMeshes;
+
+    const forwardRaycaster = raycasterPool.get();
+    forwardRaycaster.set(forwardRayOrigin, forwardDirection);
+    forwardRaycaster.near = 0;
+    forwardRaycaster.far = 0.2;
+    const forwardIntersects = forwardRaycaster.intersectObjects(nearbyMeshes, false);
 
     if (forwardIntersects.length > 0) {
         const obstacleHeight = forwardIntersects[0].point.y;

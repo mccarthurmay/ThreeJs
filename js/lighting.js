@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { planetGroup } from './scene.js';
 import { SUN_DISTANCE, SUN_RADIUS, MOON_DISTANCE, MOON_RADIUS, DAY_NIGHT_SPEED } from './config.js';
+import { shadowOptimizer } from './main.js';
 
 // Ambient light
 export const ambientLight = new THREE.AmbientLight(0x808080, 3.0);
@@ -123,6 +124,11 @@ export function addLightingToScene(scene) {
     planetGroup.add(moonGlow);
     planetGroup.add(moonLight);
     planetGroup.add(moonDirectionalLight);
+
+    // Register shadow-casting lights with shadow optimizer
+    if (shadowOptimizer) {
+        shadowOptimizer.registerLights([sunLight, moonDirectionalLight]);
+    }
 }
 
 // Update day/night cycle

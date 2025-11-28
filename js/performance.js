@@ -9,7 +9,9 @@ import * as THREE from 'three';
 
 // Performance Manager Class - Auto-adjusts quality based on FPS
 export class PerformanceManager {
-    constructor() {
+    constructor(renderingOptimizer = null, shadowOptimizer = null) {
+        this.renderingOptimizer = renderingOptimizer;
+        this.shadowOptimizer = shadowOptimizer;
         this.fpsHistory = [];
         this.fpsHistorySize = 60;
         this.currentFPS = 60;
@@ -124,6 +126,16 @@ export class PerformanceManager {
         this.adjustCloudCount(tier.cloudCount);
         this.adjustShadowResolution(tier.shadowRes, tier.moonShadowRes);
         this.adjustMoonLight(tier.moonEnabled);
+
+        // Apply to rendering optimizer if available
+        if (this.renderingOptimizer) {
+            this.renderingOptimizer.setQualityTier(tierIndex);
+        }
+
+        // Apply to shadow optimizer if available
+        if (this.shadowOptimizer) {
+            this.shadowOptimizer.setQualityTier(tierIndex);
+        }
 
         // Save to localStorage
         localStorage.setItem('qualityTier', tierIndex);

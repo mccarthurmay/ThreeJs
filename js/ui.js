@@ -83,16 +83,38 @@ function updateTimeButtonText() {
 }
 
 // Escape menu handlers
-export function setupEscapeMenu(performanceManager) {
+export function setupEscapeMenu(performanceManager, profiler) {
     document.getElementById('quality-cycle-btn').addEventListener('click', () => {
         performanceManager.cycleQuality();
     });
+
+    // Profiler toggle
+    document.getElementById('profiler-toggle-btn').addEventListener('click', () => {
+        profiler.toggle();
+        updateProfilerButtonText(profiler);
+    });
+
+    // Initialize profiler button text
+    updateProfilerButtonText(profiler);
 
     // Close menu when clicking overlay
     document.getElementById('menu-overlay').addEventListener('click', () => {
         document.getElementById('escape-menu').classList.remove('visible');
         document.getElementById('menu-overlay').classList.remove('visible');
     });
+}
+
+function updateProfilerButtonText(profiler) {
+    const statusText = document.getElementById('profiler-status-text');
+    const button = document.getElementById('profiler-toggle-btn');
+
+    if (profiler.enabled) {
+        statusText.textContent = 'On';
+        button.style.background = 'rgba(139, 195, 74, 0.8)';
+    } else {
+        statusText.textContent = 'Off';
+        button.style.background = '';
+    }
 }
 
 // Loading progress update

@@ -158,13 +158,6 @@ export function setupControls(performanceManager) {
         }
 
         // Quality controls
-        if (key === 'p') {
-            performanceManager.showFPS = !performanceManager.showFPS;
-            const indicator = document.getElementById('quality-indicator');
-            indicator.style.display = 'block';
-            console.log(`FPS display: ${performanceManager.showFPS ? 'ON' : 'OFF'}`);
-        }
-
         if (key === 'q') {
             performanceManager.isAuto = !performanceManager.isAuto;
             console.log(`Auto quality: ${performanceManager.isAuto ? 'ON' : 'OFF'}`);
