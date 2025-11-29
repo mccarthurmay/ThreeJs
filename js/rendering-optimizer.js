@@ -35,6 +35,10 @@ export class RenderingOptimizer {
         // Shadow margin - expand frustum check for shadow casters
         // On a spherical world, shadows can extend ~5-10 units beyond object
         this.shadowCullingMargin = 10; // Extra margin for shadow casters
+
+        // Configure camera to only render layer 0 (visible objects)
+        // Layer 1 is reserved for collision detection (always active)
+        this.camera.layers.set(0);
     }
 
     // Register meshes for culling optimization
@@ -57,6 +61,11 @@ export class RenderingOptimizer {
                     child.userData.originallyVisible = child.visible;
                     child.userData.cullable = true;
                     child.userData.isShadowCaster = child.castShadow;
+
+                    // Setup layers: layer 0 for rendering, layer 1 for collision
+                    // Note: physics.js already enabled layer 1, so just ensure layer 0 is enabled
+                    child.layers.enable(0);   // Camera can see it (don't use set() as it clears layer 1)
+                    child.layers.enable(1);   // Physics can detect it (redundant but explicit)
 
                     // Calculate bounding sphere for distance culling
                     if (!child.geometry.boundingSphere) {
@@ -135,8 +144,14 @@ export class RenderingOptimizer {
                 }
             }
 
-            // Update visibility
-            mesh.visible = isVisible;
+            // Update visibility using layers instead of visible property
+            // This allows physics raycasting to work on culled objects
+            if (isVisible) {
+                mesh.layers.enable(0);   // Camera can render it
+            } else {
+                mesh.layers.disable(0);  // Camera won't render it (culled)
+            }
+            // Layer 1 always stays enabled for collision detection
 
             // Update stats
             if (isVisible) {
@@ -153,31 +168,31 @@ export class RenderingOptimizer {
             case 0: // Ultra
             case 1: // High
                 this.updateEveryNFrames = 1;
-                this.maxRenderDistance = 100;
+                this.maxRenderDistance = 150;
                 this.useFrustumCulling = true;
                 this.useDistanceCulling = false;
                 break;
             case 2: // Medium
                 this.updateEveryNFrames = 2;
-                this.maxRenderDistance = 80;
+                this.maxRenderDistance = 100;
                 this.useFrustumCulling = true;
                 this.useDistanceCulling = true;
                 break;
             case 3: // Low
                 this.updateEveryNFrames = 2;
-                this.maxRenderDistance = 60;
+                this.maxRenderDistance = 80;
                 this.useFrustumCulling = true;
                 this.useDistanceCulling = true;
                 break;
             case 4: // Very Low
                 this.updateEveryNFrames = 3;
-                this.maxRenderDistance = 40;
+                this.maxRenderDistance = 60;
                 this.useFrustumCulling = true;
                 this.useDistanceCulling = true;
                 break;
             case 5: // Potato
                 this.updateEveryNFrames = 4;
-                this.maxRenderDistance = 30;
+                this.maxRenderDistance = 45;
                 this.useFrustumCulling = true;
                 this.useDistanceCulling = true;
                 break;
@@ -199,7 +214,9 @@ export class RenderingOptimizer {
         // If disabled, make all meshes visible again
         if (!this.enabled) {
             this.cullableMeshes.forEach(mesh => {
-                mesh.visible = mesh.userData.originallyVisible;
+                if (mesh.userData.originallyVisible) {
+                    mesh.layers.enable(0);  // Restore to camera layer
+                }
             });
         }
 

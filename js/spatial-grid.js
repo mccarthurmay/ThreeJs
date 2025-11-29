@@ -10,6 +10,7 @@ export class SpatialGrid {
         this.cellSize = cellSize;
         this.grid = new Map(); // Map of cell keys to arrays of meshes
         this.meshToCells = new Map(); // Track which cells each mesh is in
+        this.parentGroup = null; // Parent group for coordinate space
     }
 
     // Convert world position to grid cell key
@@ -45,14 +46,23 @@ export class SpatialGrid {
     }
 
     // Build the spatial grid from meshes
-    build(meshes) {
+    // parentGroup: if provided, positions are stored in this group's local space
+    build(meshes, parentGroup = null) {
         console.log(`Building spatial grid with cell size ${this.cellSize}...`);
+        this.parentGroup = parentGroup;
 
         // Clear existing grid
         this.grid.clear();
         this.meshToCells.clear();
 
         let meshesAdded = 0;
+
+        // Get parent world-to-local transform if needed
+        const parentWorldToLocal = new THREE.Matrix4();
+        if (parentGroup) {
+            parentGroup.updateMatrixWorld(true);
+            parentWorldToLocal.copy(parentGroup.matrixWorld).invert();
+        }
 
         meshes.forEach(mesh => {
             // Update world matrix
@@ -66,6 +76,31 @@ export class SpatialGrid {
             // Get bounding box in world space
             const bbox = mesh.geometry.boundingBox.clone();
             bbox.applyMatrix4(mesh.matrixWorld);
+
+            // Transform to parent local space if parent is specified
+            if (parentGroup) {
+                // Must transform all 8 corners and recompute min/max
+                // because rotation can change which corners are min/max
+                const corners = [
+                    new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.min.z),
+                    new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.max.z),
+                    new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.min.z),
+                    new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.max.z),
+                    new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.min.z),
+                    new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.max.z),
+                    new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.min.z),
+                    new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.max.z)
+                ];
+
+                corners.forEach(corner => corner.applyMatrix4(parentWorldToLocal));
+
+                bbox.min.set(Infinity, Infinity, Infinity);
+                bbox.max.set(-Infinity, -Infinity, -Infinity);
+                corners.forEach(corner => {
+                    bbox.min.min(corner);
+                    bbox.max.max(corner);
+                });
+            }
 
             // Get all cells this mesh overlaps
             const cellKeys = this._getCellKeysForBounds(bbox.min, bbox.max);
@@ -83,7 +118,8 @@ export class SpatialGrid {
             meshesAdded++;
         });
 
-        console.log(`Spatial grid built: ${meshesAdded} meshes across ${this.grid.size} cells`);
+        const coordSpace = parentGroup ? 'parent local space' : 'world space';
+        console.log(`Spatial grid built in ${coordSpace}: ${meshesAdded} meshes across ${this.grid.size} cells`);
         console.log(`Average meshes per cell: ${(meshesAdded / this.grid.size).toFixed(1)}`);
     }
 

@@ -89,11 +89,12 @@ export function loadWorld() {
                 planetGroup.add(planet);
                 console.log('Blender world model loaded successfully');
 
-                // Build collision meshes array for physics
-                buildCollisionMeshes();
-
                 // Rotate planet so spawn cube is at character position
                 rotateToSpawn();
+
+                // Build collision meshes array for physics AFTER rotation
+                // This ensures the spatial grid has the correct post-rotation positions
+                buildCollisionMeshes();
 
                 // Hide loading screen and show intro screen
                 showIntroScreen();

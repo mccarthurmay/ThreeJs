@@ -44,6 +44,8 @@ export function buildCollisionMeshes() {
         if (child.isMesh) {
             const name = child.name.toLowerCase();
             if (!name.includes('grass') && !name.includes('pebble')) {
+                // Enable layer 1 for collision detection (layer 0 is default for rendering)
+                child.layers.enable(1);
                 collisionMeshes.push(child);
             }
         }
@@ -51,8 +53,9 @@ export function buildCollisionMeshes() {
     console.log(`Built collision meshes array: ${collisionMeshes.length} meshes`);
 
     // Build spatial grid for optimized collision detection
+    // Store in planetGroup local space so grid stays valid as planet rotates
     spatialGrid = new SpatialGrid(5); // 5-unit cell size
-    spatialGrid.build(collisionMeshes);
+    spatialGrid.build(collisionMeshes, planetGroup);
 
     const gridStats = spatialGrid.getStats();
     console.log(`Spatial grid: ${gridStats.totalCells} cells, avg ${gridStats.avgMeshesPerCell} meshes/cell`);
@@ -78,9 +81,17 @@ export function updatePhysics(dt, introActive) {
     );
 
     // Get nearby meshes using spatial grid
-    const searchRadius = 10; // Search within 10 units
+    // Transform character position to planet local space for spatial grid query
+    // (spatial grid is in planet's coordinate frame, but planet rotates during gameplay)
+    const localRayOrigin = rayOrigin.clone();
+    if (spatialGrid) {
+        const planetWorldToLocal = new THREE.Matrix4().copy(planetGroup.matrixWorld).invert();
+        localRayOrigin.applyMatrix4(planetWorldToLocal);
+    }
+
+    const searchRadius = 20; // Search within 20 units for reliable collision detection
     const nearbyMeshes = spatialGrid
-        ? spatialGrid.getNearbyMeshes(rayOrigin, searchRadius)
+        ? spatialGrid.getNearbyMeshes(localRayOrigin, searchRadius)
         : collisionMeshes;
 
     // If moving down, cast ray along movement path
@@ -89,6 +100,7 @@ export function updatePhysics(dt, introActive) {
         const raycaster = raycasterPool.get();
         raycaster.set(rayOrigin, downVector);
         raycaster.far = movementDistance + 1.0; // Look ahead of movement
+        raycaster.layers.set(1); // Only check collision layer (ignores visibility)
 
         const intersects = raycaster.intersectObjects(nearbyMeshes, false);
 
@@ -133,6 +145,7 @@ export function updatePhysics(dt, introActive) {
     const safetyRaycaster = raycasterPool.get();
     safetyRaycaster.set(rayOrigin, downVector);
     safetyRaycaster.far = 50;
+    safetyRaycaster.layers.set(1); // Only check collision layer (ignores visibility)
     const safetyCheck = safetyRaycaster.intersectObjects(nearbyMeshes, false);
     if (safetyCheck.length > 0) {
         const groundY = safetyCheck[0].point.y;
@@ -147,7 +160,11 @@ export function updatePhysics(dt, introActive) {
 
 // Check for forward collision (for movement blocking)
 export function checkForwardCollision(characterRotation, direction) {
-    const forwardRayOrigin = new THREE.Vector3(0, characterGroup.position.y, 0);
+    const forwardRayOrigin = new THREE.Vector3(
+        characterGroup.position.x,
+        characterGroup.position.y,
+        characterGroup.position.z
+    );
     const forwardDirection = new THREE.Vector3(
         -Math.sin(characterRotation) * direction,
         0,
@@ -155,15 +172,23 @@ export function checkForwardCollision(characterRotation, direction) {
     );
 
     // Get nearby meshes for collision check
-    const searchRadius = 5;
+    // Transform character position to planet local space for spatial grid query
+    const localForwardOrigin = forwardRayOrigin.clone();
+    if (spatialGrid) {
+        const planetWorldToLocal = new THREE.Matrix4().copy(planetGroup.matrixWorld).invert();
+        localForwardOrigin.applyMatrix4(planetWorldToLocal);
+    }
+
+    const searchRadius = 10; // Increased from 5 for better forward collision detection
     const nearbyMeshes = spatialGrid
-        ? spatialGrid.getNearbyMeshes(forwardRayOrigin, searchRadius)
+        ? spatialGrid.getNearbyMeshes(localForwardOrigin, searchRadius)
         : collisionMeshes;
 
     const forwardRaycaster = raycasterPool.get();
     forwardRaycaster.set(forwardRayOrigin, forwardDirection);
     forwardRaycaster.near = 0;
     forwardRaycaster.far = 0.2;
+    forwardRaycaster.layers.set(1); // Only check collision layer (ignores visibility)
     const forwardIntersects = forwardRaycaster.intersectObjects(nearbyMeshes, false);
 
     if (forwardIntersects.length > 0) {
