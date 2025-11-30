@@ -70,6 +70,10 @@ export const FIXED_TIMESTEP = 1/60;
 // Day/night cycle
 export const DAY_NIGHT_SPEED = 0.025;
 
+// Moon orbit - faster visible orbit
+// Moon completes one orbit every ~3 day/night cycles for visibility
+export const MOON_ORBIT_SPEED = DAY_NIGHT_SPEED / 3;
+
 // Celestial bodies
 // Sun is now realistically distant (like a real solar system)
 // Smaller radius makes it appear more distant
