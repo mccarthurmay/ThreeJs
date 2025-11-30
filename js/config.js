@@ -13,7 +13,7 @@ export const signData = {
     'sign7': 'WASD to move. Space to jump. Hold Shift to sprint.',
     'sign8': 'I was born in Guangzhou, China. I only lived there for a short 5 years. We left for the US, my mom making a new life and my dad returning home.',
     'sign9': 'I had a great time growing up. Timeless memories were made with the friends I met, and now a few will remain life-long.',
-    'sign10': 'Then, I took a leap of faith going to Colorado College, a small liberal arts school in Colorado Springs. I\'m grateful for who I am today, and it\'s safe to say that these past 3 years have been incredibly transformative. I wouldn\'t be who I am today if not for the people I surrounded myself with and the passions I chose to pursue.',
+    'sign10': 'Then, I took a leap of faith going to Colorado College, a small liberal arts school in Colorado Springs. I\'m grateful for all the things I\'ve been able to experience, and it\'s safe to say that these past 3 years have been incredibly transformative. I wouldn\'t be who I am today if not for the people I surrounded myself with and the passions I chose to pursue.',
     'sign11': 'I am now a junior.',
     'sign12': 'I\'m currently doing research for a professor at the Colorado School of Mines regarding the stigma around mental health.',
     'sign13': 'Here\'s a list of my project: Super mario A* and Theta* Pathfinder in C, Top-Down Adventure Game in Java, Stock Tracker using Alpaca. (a gallery area)',
