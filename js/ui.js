@@ -16,9 +16,14 @@ export const keys = {
 
 // Intro screen state
 export let introActive = true;
+export let introAnimating = false;
 
 export function setIntroActive(value) {
     introActive = value;
+}
+
+export function setIntroAnimating(value) {
+    introAnimating = value;
 }
 
 // Spotify player toggle
@@ -160,11 +165,30 @@ export function showIntroScreen() {
 
 // Hide intro screen
 export function hideIntroScreen() {
-    introActive = false;
+    // Check if intro animation manager exists
+    if (window.introAnimationManager) {
+        // Start intro animation instead of going straight to gameplay
+        introAnimating = true;
+
+        // Start the animation
+        window.introAnimationManager.start();
+    } else {
+        // No intro animation - go straight to gameplay
+        introActive = false;
+    }
+
+    // Fade out intro screen
     document.getElementById('intro-screen').classList.add('fade-out');
     setTimeout(() => {
         document.getElementById('intro-screen').style.display = 'none';
     }, 1000);
+}
+
+// Complete intro animation and transition to gameplay
+export function completeIntroAnimation() {
+    introActive = false;
+    introAnimating = false;
+    console.log('Gameplay started');
 }
 
 // Update coordinates display

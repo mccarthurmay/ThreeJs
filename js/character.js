@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { characterGroup } from './scene.js';
-import { CHARACTER_HEIGHT, SPAWN_HEIGHT } from './config.js';
+import { CHARACTER_HEIGHT, SPAWN_HEIGHT, SPRINT_MULTIPLIER } from './config.js';
 
 // Animation state
 export const animationState = {
@@ -124,7 +124,7 @@ export function loadCharacter() {
 }
 
 // Update character animations
-export function updateCharacterAnimations(deltaTime, physics) {
+export function updateCharacterAnimations(deltaTime, physics, isSprinting = false) {
     if (!mixer || !characterLoaded) return;
 
     mixer.update(deltaTime);
@@ -132,6 +132,13 @@ export function updateCharacterAnimations(deltaTime, physics) {
     // Check if jump animation finished and character is grounded
     if (animationState.isJumping && physics.isGrounded) {
         animationState.isJumping = false;
+    }
+
+    // Update walk animation speed based on sprint state
+    if (walkAction) {
+        const baseTimeScale = 1.2;
+        const sprintTimeScale = baseTimeScale * SPRINT_MULTIPLIER;
+        walkAction.setEffectiveTimeScale(isSprinting ? sprintTimeScale : baseTimeScale);
     }
 
     // Handle jump animation (highest priority)

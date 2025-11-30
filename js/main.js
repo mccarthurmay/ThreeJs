@@ -12,9 +12,10 @@ import { PerformanceManager } from './performance.js';
 import { PerformanceProfiler } from './profiler.js';
 import { RenderingOptimizer } from './rendering-optimizer.js';
 import { ShadowOptimizer } from './shadow-optimizer.js';
-import { setupSpotifyPlayer, setupTimeControls, setupEscapeMenu, updateCoordinatesDisplay, introActive } from './ui.js';
-import { loadWorld, updateSignLabels } from './world.js';
-import { setupControls, handleMovement, updateCamera, detachedCamera } from './controls.js';
+import { setupSpotifyPlayer, setupTimeControls, setupEscapeMenu, updateCoordinatesDisplay, introActive, introAnimating, completeIntroAnimation } from './ui.js';
+import { loadWorld, updateSignLabels, spaceshipMesh, explosionMesh, introCameraMesh, spaceshipMixer, introAnimationAction } from './world.js';
+import { setupControls, handleMovement, updateCamera, detachedCamera, isSprinting } from './controls.js';
+import { IntroAnimationManager } from './intro-animation.js';
 import { FIXED_TIMESTEP, CAMERA_HEIGHT, CAMERA_DISTANCE_IDLE, SPAWN_HEIGHT } from './config.js';
 
 // Initialize systems
@@ -56,6 +57,35 @@ async function init() {
 
         // Register meshes with rendering optimizer
         renderingOptimizer.registerMeshes(planetGroup);
+
+        // Initialize intro animation manager
+        if (spaceshipMesh && explosionMesh && spaceshipMixer && window.spaceshipAction && window.cameraAction && window.explosionAction) {
+            const introAnimationManager = new IntroAnimationManager(
+                camera,
+                scene,
+                spaceshipMesh,
+                explosionMesh,
+                introCameraMesh,
+                spaceshipMixer,
+                {
+                    spaceship: window.spaceshipAction,
+                    camera: window.cameraAction,
+                    explosion: window.explosionAction
+                },
+                renderingOptimizer
+            );
+            window.introAnimationManager = introAnimationManager;
+            console.log('✓ IntroAnimationManager created successfully');
+        } else {
+            console.error('Failed to create IntroAnimationManager. Missing:', {
+                spaceshipMesh: !!spaceshipMesh,
+                explosionMesh: !!explosionMesh,
+                spaceshipMixer: !!spaceshipMixer,
+                spaceshipAction: !!window.spaceshipAction,
+                cameraAction: !!window.cameraAction,
+                explosionAction: !!window.explosionAction
+            });
+        }
     } catch (error) {
         console.error('Error loading assets:', error);
         return;
@@ -77,9 +107,17 @@ function animate() {
     // Update performance manager
     performanceManager.update(deltaTime);
 
+    // === INTRO ANIMATION ===
+    if (introAnimating && window.introAnimationManager) {
+        const animationComplete = window.introAnimationManager.update(deltaTime);
+        if (animationComplete) {
+            completeIntroAnimation();
+        }
+    }
+
     // === CHARACTER ANIMATIONS ===
     let t = profiler.startMeasure('animations');
-    updateCharacterAnimations(deltaTime, physics);
+    updateCharacterAnimations(deltaTime, physics, isSprinting);
     profiler.endMeasure('animations', t);
 
     // === DAY/NIGHT CYCLE ===
@@ -103,8 +141,8 @@ function animate() {
     updateClouds(time, sunDir, performanceManager);
     profiler.endMeasure('clouds', t);
 
-    // Gameplay
-    if (!introActive) {
+    // Gameplay (only when intro is complete)
+    if (!introActive && !introAnimating) {
         // Handle jump charge-up delay
         if (physics.jumpCharging) {
             physics.jumpChargeTime += deltaTime;

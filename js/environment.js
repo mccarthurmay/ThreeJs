@@ -6,24 +6,31 @@ import * as THREE from 'three';
 import { planetGroup } from './scene.js';
 import { NUM_CLOUDS, CLOUD_BASE_DISTANCE, CLOUD_DISTANCE_VARIATION, PLANET_RADIUS } from './config.js';
 
-// Stars
+// Stars - distant galaxy backdrop
 const starsGeometry = new THREE.BufferGeometry();
 export const starsMaterial = new THREE.PointsMaterial({
     color: 0xffffff,
-    size: 0.1,
+    size: 2.0, // Larger size since they're farther away
     transparent: true,
     opacity: 1.0,
     depthWrite: false
 });
 const starsVertices = [];
-for (let i = 0; i < 1000; i++) {
-    const x = (Math.random() - 0.5) * 100;
-    const y = (Math.random() - 0.5) * 100;
-    const z = (Math.random() - 0.5) * 100;
+// Create stars on a distant sphere (like a skybox)
+const starDistance = 1500; // Very far away, beyond the sun
+for (let i = 0; i < 2000; i++) { // More stars for a denser galaxy
+    // Random point on a sphere using spherical coordinates
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+
+    const x = starDistance * Math.sin(phi) * Math.cos(theta);
+    const y = starDistance * Math.sin(phi) * Math.sin(theta);
+    const z = starDistance * Math.cos(phi);
     starsVertices.push(x, y, z);
 }
 starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
 export const stars = new THREE.Points(starsGeometry, starsMaterial);
+stars.frustumCulled = false; // Never cull the stars
 
 // Atmosphere
 const atmosphereGeometry = new THREE.SphereGeometry(25, 32, 32);
@@ -182,7 +189,7 @@ export function createClouds() {
 
 // Add environment to scene
 export function addEnvironmentToScene(scene) {
-    planetGroup.add(stars);
+    planetGroup.add(stars); // Stars rotate with planet to emulate real-world star movement
     scene.add(atmosphere);
     createClouds();
 }
@@ -237,6 +244,7 @@ export function updateClouds(time, sunDir, performanceManager) {
 
 // Update stars opacity based on day/night
 export function updateStarsOpacity(sunY) {
-    const dayNightTransition = Math.max(0, Math.min(1, (sunY + 10) / 20));
-    starsMaterial.opacity = 1.0 - dayNightTransition;
+    // Stars are now a distant galaxy backdrop, always visible
+    // Keep them at full opacity regardless of day/night
+    starsMaterial.opacity = 1.0;
 }

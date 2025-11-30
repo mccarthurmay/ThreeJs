@@ -10,7 +10,7 @@ export const signData = {
     'sign4': 'Other interests/hobbies.',
     'sign5': 'This way to see my hobbies/passions.',
     'sign6': 'Then, I started exploring the adirondacks.',
-    'sign7': 'WASD to move. Space to jump.',
+    'sign7': 'WASD to move. Space to jump. Hold Shift to sprint.',
     'sign8': 'I was born in Guangzhou, China. I only lived there for a short 5 years. We left for the US, my mom making a new life and my dad returning home.',
     'sign9': 'I had a great time growing up. Timeless memories were made with the friends I met, and now a few will remain life-long.',
     'sign10': 'Then, I took a leap of faith going to Colorado College, a small liberal arts school in Colorado Springs. I\'m grateful for who I am today, and it\'s safe to say that these past 3 years have been incredibly transformative. I wouldn\'t be who I am today if not for the people I surrounded myself with and the passions I chose to pursue.',
@@ -38,6 +38,7 @@ export const PLANET_RADIUS = 16;
 // Camera constants
 export const CAMERA_DISTANCE_IDLE = 1.2;
 export const CAMERA_DISTANCE_WALKING = 1.7;
+export const CAMERA_DISTANCE_SPRINTING = 2.5;
 export const CAMERA_HEIGHT = 1.0;
 
 // Camera sway constants
@@ -54,6 +55,10 @@ export const MOVE_DECELERATION = 1.5;
 export const MOVE_SPEED = 0.2;
 export const TURN_SPEED = 2;
 
+// Sprint constants
+export const SPRINT_MULTIPLIER = 2.0;
+export const SPRINT_ACCELERATION_MULTIPLIER = 1.5;
+
 // Physics constants
 export const GRAVITY = 20.0;
 export const JUMP_FORCE = 5.0;
@@ -66,9 +71,12 @@ export const FIXED_TIMESTEP = 1/60;
 export const DAY_NIGHT_SPEED = 0.025;
 
 // Celestial bodies
-export const SUN_DISTANCE = 50;
-export const SUN_RADIUS = 5;
-export const MOON_DISTANCE = 40;
+// Sun is now realistically distant (like a real solar system)
+// Smaller radius makes it appear more distant
+export const SUN_DISTANCE = 1000;
+export const SUN_RADIUS = 150; // Reduced from 300 to appear smaller and more distant
+// Moon is very close to planet (just outside atmosphere)
+export const MOON_DISTANCE = 30;
 export const MOON_RADIUS = 3;
 
 // Cloud constants
@@ -85,3 +93,12 @@ export const BIRD_EYE_MAX_ZOOM = 50;
 // Sign proximity
 export const SIGN_PROXIMITY_NORMAL = 3.0;
 export const SIGN_PROXIMITY_BIRDS_EYE = 10.0;
+
+// Intro animation
+export const INTRO_CHASE_DURATION = 80 / 24; // 80 frames at 24fps = ~3.33 seconds
+export const INTRO_EXPLOSION_DURATION = 2.0; // 2 seconds
+export const INTRO_TRANSITION_DURATION = 1.5; // 1.5 seconds back to player
+export const INTRO_CHASE_OFFSET_X = 0;
+export const INTRO_CHASE_OFFSET_Y = 0.5; // Slightly above, not much
+export const INTRO_CHASE_OFFSET_Z = -12; // Further behind spaceship for better view
+export const INTRO_EXPLOSION_ZOOM_DISTANCE = 20;

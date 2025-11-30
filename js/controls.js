@@ -4,13 +4,14 @@
 
 import * as THREE from 'three';
 import { camera, characterGroup, planetGroup } from './scene.js';
-import { keys, hideIntroScreen, introActive } from './ui.js';
+import { keys, hideIntroScreen, introActive, introAnimating, completeIntroAnimation } from './ui.js';
 import { physics, checkForwardCollision } from './physics.js';
 import { animationState, rotateCharacter, jumpAction, setCharacterRotation, getCharacterRotation } from './character.js';
 import {
     CAMERA_HEIGHT,
     CAMERA_DISTANCE_IDLE,
     CAMERA_DISTANCE_WALKING,
+    CAMERA_DISTANCE_SPRINTING,
     CAMERA_SWAY_INTENSITY,
     CAMERA_SWAY_SPEED,
     SWAY_SIDE_AMOUNT,
@@ -24,7 +25,9 @@ import {
     BIRD_EYE_DISTANCE_DEFAULT,
     BIRD_EYE_TILT,
     BIRD_EYE_MIN_ZOOM,
-    BIRD_EYE_MAX_ZOOM
+    BIRD_EYE_MAX_ZOOM,
+    SPRINT_MULTIPLIER,
+    SPRINT_ACCELERATION_MULTIPLIER
 } from './config.js';
 
 // Camera state
@@ -33,6 +36,7 @@ export let cameraShakeOffset = new THREE.Vector3(0, 0, 0);
 
 // Movement state
 export let currentMoveSpeed = 0.0;
+export let isSprinting = false;
 
 // Bird's eye view state
 export let detachedCamera = false;
@@ -106,13 +110,22 @@ export function setupControls(performanceManager) {
     window.addEventListener('keydown', (e) => {
         const key = e.key.toLowerCase();
 
-        if (e.key === 'Enter' && introActive) {
+        if (e.key === 'Enter' && introActive && !introAnimating) {
             hideIntroScreen();
             return;
         }
 
-        // Toggle escape menu
-        if (e.key === 'Escape' && !introActive) {
+        // ESC to skip intro animation
+        if (e.key === 'Escape' && introAnimating) {
+            if (window.introAnimationManager) {
+                window.introAnimationManager.skip();
+                completeIntroAnimation();
+            }
+            return;
+        }
+
+        // Toggle escape menu (only during gameplay, not during intro animation)
+        if (e.key === 'Escape' && !introActive && !introAnimating) {
             const menu = document.getElementById('escape-menu');
             const overlay = document.getElementById('menu-overlay');
 
@@ -236,6 +249,7 @@ export function handleMovement(deltaTime) {
     if (introActive) return;
 
     const isTurning = keys.a || keys.d;
+    isSprinting = keys.shift;
 
     if (keys.a) {
         rotateCharacter(TURN_SPEED * deltaTime);
@@ -250,8 +264,12 @@ export function handleMovement(deltaTime) {
         animationState.isWalking = false;
     }
 
+    // Apply sprint multipliers when shift is held
+    const maxSpeed = isSprinting ? MAX_MOVE_SPEED * SPRINT_MULTIPLIER : MAX_MOVE_SPEED;
+    const acceleration = isSprinting ? MOVE_ACCELERATION * SPRINT_ACCELERATION_MULTIPLIER : MOVE_ACCELERATION;
+
     if (keys.w || keys.s) {
-        currentMoveSpeed = Math.min(currentMoveSpeed + MOVE_ACCELERATION * deltaTime, MAX_MOVE_SPEED);
+        currentMoveSpeed = Math.min(currentMoveSpeed + acceleration * deltaTime, maxSpeed);
     } else {
         currentMoveSpeed = Math.max(currentMoveSpeed - MOVE_DECELERATION * deltaTime, 0);
     }
@@ -295,14 +313,19 @@ export function updateCamera(time) {
         camera.lookAt(0, 0, 0);
     } else {
         // Normal player-locked camera
-        const targetCameraDistance = (keys.w || keys.s) ? CAMERA_DISTANCE_WALKING : CAMERA_DISTANCE_IDLE;
+        let targetCameraDistance = CAMERA_DISTANCE_IDLE;
+        if (keys.w || keys.s) {
+            targetCameraDistance = isSprinting ? CAMERA_DISTANCE_SPRINTING : CAMERA_DISTANCE_WALKING;
+        }
         const lerpFactor = 0.025;
         currentCameraDistance = currentCameraDistance + (targetCameraDistance - currentCameraDistance) * lerpFactor;
 
         // Update camera sway
         if (animationState.isWalking && currentMoveSpeed > 0) {
-            const swayIntensity = (currentMoveSpeed / MAX_MOVE_SPEED) * CAMERA_SWAY_INTENSITY;
-            const waddlePhase = time * CAMERA_SWAY_SPEED;
+            const maxSpeedForSway = isSprinting ? MAX_MOVE_SPEED * SPRINT_MULTIPLIER : MAX_MOVE_SPEED;
+            const swayIntensity = (currentMoveSpeed / maxSpeedForSway) * CAMERA_SWAY_INTENSITY;
+            const swaySpeed = isSprinting ? CAMERA_SWAY_SPEED * 1.5 : CAMERA_SWAY_SPEED;
+            const waddlePhase = time * swaySpeed;
 
             cameraShakeOffset.x = Math.sin(waddlePhase) * swayIntensity * SWAY_SIDE_AMOUNT;
             cameraShakeOffset.y = (1 - Math.cos(waddlePhase * 2)) * swayIntensity * SWAY_BOB_AMOUNT;

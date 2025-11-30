@@ -51,17 +51,41 @@ export let spatialGrid = null;
 // Build collision meshes array and spatial grid
 export function buildCollisionMeshes() {
     collisionMeshes = [];
+    let skippedLarge = 0;
     planetGroup.traverse((child) => {
         if (child.isMesh) {
             const name = child.name.toLowerCase();
-            if (!name.includes('grass') && !name.includes('pebble')) {
-                // Enable layer 1 for collision detection (layer 0 is default for rendering)
-                child.layers.enable(1);
-                collisionMeshes.push(child);
+            // Exclude non-collidable objects: grass, pebbles, celestial bodies, atmosphere, stars
+            const isNonCollidable =
+                name.includes('grass') ||
+                name.includes('pebble') ||
+                name.includes('sun') ||
+                name.includes('moon') ||
+                name.includes('star') ||
+                name.includes('atmosphere') ||
+                name.includes('glow');
+
+            if (!isNonCollidable) {
+                // Check bounding box size to detect massive objects that would break spatial grid
+                child.geometry.computeBoundingBox();
+                const bbox = child.geometry.boundingBox;
+                const size = new THREE.Vector3();
+                bbox.getSize(size);
+                const maxDim = Math.max(size.x, size.y, size.z);
+
+                // Skip objects larger than 100 units (they'd create millions of spatial grid cells)
+                if (maxDim > 100) {
+                    console.warn(`Skipping large mesh "${child.name}" (max dimension: ${maxDim.toFixed(1)})`);
+                    skippedLarge++;
+                } else {
+                    // Enable layer 1 for collision detection (layer 0 is default for rendering)
+                    child.layers.enable(1);
+                    collisionMeshes.push(child);
+                }
             }
         }
     });
-    console.log(`Built collision meshes array: ${collisionMeshes.length} meshes`);
+    console.log(`Built collision meshes array: ${collisionMeshes.length} meshes (skipped ${skippedLarge} large objects)`);
 
     // Build spatial grid for optimized collision detection
     // Store in planetGroup local space so grid stays valid as planet rotates

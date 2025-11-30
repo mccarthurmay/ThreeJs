@@ -8,10 +8,12 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 // Scene setup
 export const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0a1a);
-scene.fog = new THREE.Fog(0x0a0a1a, 20, 50);
+// Disable fog - it was making distant objects (sun, planet from far away) invisible
+// scene.fog = new THREE.Fog(0x0a0a1a, 20, 50);
 
 // Camera
-export const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
+// Far plane set to 2000 to accommodate distant sun (1000 units + glow layers + margin)
+export const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 2000);
 
 // WebGL Renderer
 export const renderer = new THREE.WebGLRenderer({ antialias: true });

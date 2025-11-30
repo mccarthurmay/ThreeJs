@@ -54,11 +54,17 @@ export class RenderingOptimizer {
                 const name = child.name.toLowerCase();
 
                 // Don't cull essential objects like ground, water, atmosphere, sky
+                // Also don't cull intro animation objects (spaceship, explosion)
+                // Also don't cull celestial bodies (sun, moon)
                 const isEssential =
                     name.includes('ground') ||
                     name.includes('water') ||
                     name.includes('atmosphere') ||
-                    name.includes('sky');
+                    name.includes('sky') ||
+                    name.includes('spaceship') ||
+                    name.includes('explosion') ||
+                    name.includes('sun') ||
+                    name.includes('moon');
 
                 if (!isEssential) {
                     // Store original visibility state
