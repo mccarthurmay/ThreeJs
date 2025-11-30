@@ -37,9 +37,9 @@ export class IntroAnimationManager {
 
         // Frame ranges
         this.ranges = {
-            spaceship: { start: 0, end: 80 },
+            spaceship: { start: 0, end: 100 },
             camera: { start: 0, end: 115 },
-            explosion: { start: 80, end: 129 }
+            explosion: { start: 100, end: 129 }
         };
 
         // Initialize each action
