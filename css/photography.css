@@ -11,6 +11,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -19,6 +20,8 @@ body {
     color: var(--canvas-dark-text);
     overflow: hidden;
     position: relative;
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
 }
 
 body::before {
@@ -55,6 +58,9 @@ body > * {
     justify-content: space-between;
     align-items: center;
     padding: 30px 40px;
+    padding-left: max(40px, env(safe-area-inset-left));
+    padding-right: max(40px, env(safe-area-inset-right));
+    padding-top: max(30px, env(safe-area-inset-top));
     z-index: 200;
     background: var(--canvas-cream);
     transition: transform 0.3s ease, opacity 0.3s ease;
@@ -85,6 +91,7 @@ body > * {
     position: relative;
     transition: color 0.2s ease;
     font-weight: 400;
+    touch-action: manipulation;
 }
 
 .nav-link:hover {
@@ -226,7 +233,6 @@ body > * {
     max-width: 90%;
     max-height: 90%;
     object-fit: contain;
-    border-radius: 8px;
     box-shadow: 0 0 60px rgba(0, 0, 0, 0.5);
     z-index: 1001;
     opacity: 0;
@@ -253,8 +259,9 @@ body > * {
     align-items: center;
     justify-content: center;
     z-index: 1002;
-    transition: color 0.2s ease, transform 0.2s ease;
+    transition: color 0.2s ease, transform 0.2s ease, background 0.2s ease;
     line-height: 1;
+    touch-action: manipulation;
 }
 
 #lightbox-close:hover {
@@ -264,61 +271,196 @@ body > * {
 
 /* Responsive */
 @media (max-width: 768px) {
-    #mode-indicator {
-        font-size: 0.9rem;
-        top: 15px;
-        right: 15px;
-        padding: 10px 15px;
+    /* Prevent overscroll and improve touch experience */
+    body {
+        overscroll-behavior: none;
+        -webkit-user-select: none;
+        user-select: none;
     }
 
-    #photo-counter {
-        font-size: 0.9rem;
-        bottom: 15px;
-        left: 15px;
-        padding: 10px 15px;
-    }
-
-    #instructions {
-        font-size: 0.85rem;
-        padding: 10px 15px;
-        top: 15px;
-        left: 15px;
-    }
-
-    #lightbox-image {
-        max-width: 95%;
-        max-height: 85%;
-    }
-
-    #lightbox-close {
-        width: 40px;
-        height: 40px;
-        font-size: 1.5rem;
-        top: 15px;
-        right: 15px;
-    }
-
+    /* Navigation improvements */
     #main-nav {
-        padding: 20px;
+        padding: 15px 20px;
+        flex-wrap: wrap;
+        gap: 10px;
     }
 
     #nav-name {
-        font-size: 0.9rem;
+        font-size: 0.85rem;
+        width: 100%;
+        text-align: center;
+        order: -1;
     }
 
     #nav-links {
-        gap: 25px;
+        width: 100%;
+        justify-content: center;
+        gap: 15px;
+        flex-wrap: wrap;
     }
 
     .nav-link {
+        font-size: 0.9rem;
+        padding: 8px 12px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .instagram-icon {
+        width: 24px;
+        height: 24px;
+    }
+
+    /* UI Elements */
+    #mode-indicator {
         font-size: 0.85rem;
+        top: 10px;
+        right: 10px;
+        padding: 8px 12px;
+    }
+
+    #photo-counter {
+        font-size: 0.85rem;
+        bottom: 10px;
+        left: 10px;
+        padding: 8px 12px;
+        opacity: 0.9;
+    }
+
+    #instructions {
+        font-size: 0.8rem;
+        padding: 8px 12px;
+        top: 10px;
+        left: 10px;
+    }
+
+    /* Full-screen lightbox on mobile */
+    #lightbox-image {
+        max-width: 100%;
+        max-height: 100%;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    /* Larger, easier to tap close button */
+    #lightbox-close {
+        width: 50px;
+        height: 50px;
+        font-size: 2rem;
+        top: env(safe-area-inset-top, 10px);
+        right: env(safe-area-inset-right, 10px);
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 50%;
+        backdrop-filter: blur(10px);
+    }
+
+    #lightbox-close:active {
+        background: rgba(0, 0, 0, 0.5);
+        transform: scale(0.95);
+    }
+
+    /* Canvas container optimizations */
+    #photo-canvas-container {
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Ensure lightbox backdrop is full coverage */
+    #lightbox-backdrop {
+        background: rgba(0, 0, 0, 0.98);
     }
 }
 
+/* Tablet optimizations */
 @media (min-width: 769px) and (max-width: 1024px) {
     #lightbox-image {
-        max-width: 85%;
-        max-height: 85%;
+        max-width: 90%;
+        max-height: 90%;
+    }
+
+    #lightbox-close {
+        width: 45px;
+        height: 45px;
+        font-size: 1.8rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 50%;
+        backdrop-filter: blur(10px);
+    }
+
+    #lightbox-close:hover {
+        background: rgba(0, 0, 0, 0.4);
+    }
+
+    #main-nav {
+        padding: 25px 30px;
+    }
+
+    #nav-links {
+        gap: 30px;
+    }
+}
+
+/* Very small screens */
+@media (max-width: 480px) {
+    #nav-name {
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        padding-bottom: 5px;
+    }
+
+    #nav-links {
+        gap: 10px;
+    }
+
+    .nav-link {
+        font-size: 0.8rem;
+        padding: 6px 10px;
+    }
+
+    #photo-counter {
+        font-size: 0.75rem;
+        padding: 6px 10px;
+    }
+}
+
+/* Mobile landscape */
+@media (max-width: 896px) and (max-height: 414px) and (orientation: landscape) {
+    #main-nav {
+        padding: 10px 15px;
+    }
+
+    #nav-name {
+        font-size: 0.75rem;
+        width: auto;
+        margin-right: 15px;
+    }
+
+    #nav-links {
+        width: auto;
+        gap: 15px;
+    }
+
+    .nav-link {
+        font-size: 0.8rem;
+        padding: 5px 10px;
+        min-height: 36px;
+    }
+
+    #photo-counter {
+        bottom: 8px;
+        left: 8px;
+        font-size: 0.75rem;
+        padding: 6px 10px;
+    }
+
+    #lightbox-close {
+        top: 8px;
+        right: 8px;
+        width: 44px;
+        height: 44px;
     }
 }
 

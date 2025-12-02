@@ -35,6 +35,12 @@ async function init() {
         const bounds = calculateBoundaryFromPhotos(allPhotoMeshes, 2, 2);
         state.bounds = bounds;
 
+        // Set initial position to middle of bounds
+        const middleY = (bounds.minY + bounds.maxY) / 2;
+        state.panY = middleY;
+        camera.position.set(0, middleY, 50);
+        camera.lookAt(0, middleY, 0);
+
         // Create visual boundary
         boundaryLine = updateBoundary(boundaryLine, bounds.minX, bounds.maxX, bounds.minY, bounds.maxY);
 

@@ -326,6 +326,31 @@ def download_image(url):
         print(f"    Error downloading image: {e}")
         return None
 
+def calculate_saturation(image):
+    """Calculate the average saturation of an image to determine if it's truly grayscale"""
+    try:
+        import numpy as np
+        from colorsys import rgb_to_hsv
+
+        # Resize for faster processing
+        img = image.copy()
+        img.thumbnail((150, 150))
+
+        # Convert to numpy array
+        pixels = np.array(img).reshape(-1, 3) / 255.0  # Normalize to 0-1
+
+        # Calculate saturation for each pixel
+        saturations = []
+        for pixel in pixels:
+            _, s, _ = rgb_to_hsv(pixel[0], pixel[1], pixel[2])
+            saturations.append(s)
+
+        # Return average saturation (0 = grayscale, 1 = fully saturated)
+        return np.mean(saturations)
+    except Exception as e:
+        print(f"    Error calculating saturation: {e}")
+        return 0.5  # Default to assuming color
+
 def get_color_palette(image, num_colors=5):
     """Extract color palette from image using k-means clustering"""
     try:
@@ -369,6 +394,36 @@ def get_color_palette(image, num_colors=5):
         print(f"    Error extracting color palette: {e}")
         # Return default gray palette
         return [{'r': 128, 'g': 128, 'b': 128, 'weight': 1.0}]
+
+def filter_bw_tags(color_tags, saturation):
+    """
+    Filter out black and white/grayscale tags if the image actually has color.
+
+    Args:
+        color_tags: List of color tags from CLIP
+        saturation: Average saturation of the image (0-1)
+
+    Returns:
+        Filtered list of color tags
+    """
+    # Threshold for considering an image truly grayscale
+    # 0.15 means if average saturation is above 15%, it has meaningful color
+    SATURATION_THRESHOLD = 0.15
+
+    bw_keywords = ['black and white', 'grayscale', 'monochrome', 'sepia tone', 'duotone']
+
+    if saturation > SATURATION_THRESHOLD:
+        # Image has meaningful color, filter out B&W tags
+        filtered_tags = [tag for tag in color_tags if tag.lower() not in bw_keywords]
+
+        # If we filtered everything out, return the original (CLIP was very confident)
+        if not filtered_tags:
+            return color_tags
+
+        return filtered_tags
+    else:
+        # Image is truly low saturation, keep B&W tags
+        return color_tags
 
 def get_photo_date(image):
     """Extract the date the photo was taken from EXIF metadata"""
@@ -454,11 +509,17 @@ def process_all_images():
                 # Fallback to Cloudinary upload date if no EXIF data
                 photo_date = img_data.get("created_at", "")
 
+            # Calculate saturation to detect truly grayscale images
+            saturation = calculate_saturation(image)
+
             # Generate tags
             content_tags = get_clip_tags(image, CONTENT_LABELS, TAGS_PER_IMAGE)
             style_tags = get_clip_tags(image, STYLE_LABELS, STYLE_TAGS_PER_IMAGE)
             lighting_tags = get_clip_tags(image, LIGHTING_LABELS, LIGHTING_TAGS_PER_IMAGE)
-            color_tags = get_clip_tags(image, COLOR_LABELS, COLOR_TAGS_PER_IMAGE)
+            color_tags_raw = get_clip_tags(image, COLOR_LABELS, COLOR_TAGS_PER_IMAGE)
+
+            # Filter out incorrect B&W tags for colored images
+            color_tags = filter_bw_tags(color_tags_raw, saturation)
 
             # Extract color palette (5 dominant colors)
             color_palette = get_color_palette(image, num_colors=5)
@@ -532,10 +593,16 @@ def process_images_only(images):
             if photo_date is None:
                 photo_date = img_data.get("created_at", "")
 
+            # Calculate saturation to detect truly grayscale images
+            saturation = calculate_saturation(image)
+
             content_tags = get_clip_tags(image, CONTENT_LABELS, TAGS_PER_IMAGE)
             style_tags = get_clip_tags(image, STYLE_LABELS, STYLE_TAGS_PER_IMAGE)
             lighting_tags = get_clip_tags(image, LIGHTING_LABELS, LIGHTING_TAGS_PER_IMAGE)
-            color_tags = get_clip_tags(image, COLOR_LABELS, COLOR_TAGS_PER_IMAGE)
+            color_tags_raw = get_clip_tags(image, COLOR_LABELS, COLOR_TAGS_PER_IMAGE)
+
+            # Filter out incorrect B&W tags for colored images
+            color_tags = filter_bw_tags(color_tags_raw, saturation)
 
             color_palette = get_color_palette(image, num_colors=5)
 
